@@ -1,0 +1,19 @@
+[package]
+name = "spnr-server"
+version = "0.1.0"
+edition = "2021"
+description = "spnr reference backend (v0.1 demo): creative serving, attested-event ingest with Ed25519+chain verification, double-entry ledger, click redirector, dashboard."
+
+[dependencies]
+axum.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+data-encoding.workspace = true
+spnr-proto.workspace = true
+rusqlite = { version = "0.40.1", features = ["bundled"] }
+argon2 = "0.5.3"
+
+[dev-dependencies]
+tempfile.workspace = true
+ureq.workspace = true

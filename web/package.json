@@ -1,0 +1,25 @@
+{
+  "name": "spnr-web",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "description": "spnr frontend — Vite + React + TypeScript. The CRT design (landing, developer dashboard, advertiser portal) as real React components; dashboard wired to the live backend.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.0"
+  }
+}

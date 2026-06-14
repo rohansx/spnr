@@ -1,0 +1,25 @@
+{
+  "name": "spnr-server-ts",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "description": "spnr v0.2 demand-side service (advertiser portal + open ascending auction). Typed Express, in-memory store. The TypeScript half of ADR-0007: campaigns, creative lint, single-slot auction. Event ingest + signature/chain verification stays in the Rust spnr-server.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

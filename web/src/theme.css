@@ -1,0 +1,34 @@
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #060807;
+}
+body {
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+button {
+  font-family: inherit;
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+::selection {
+  background: rgba(61, 255, 126, 0.25);
+}
+@keyframes spnr-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+@keyframes spnr-marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+/* hover affordances the inline styles can't express */
+.spnr-ghost:hover { border-color: #3DFF7E !important; color: #3DFF7E !important; }
+.spnr-primary:hover { background: #FFB02E !important; }
+.spnr-link:hover { color: #3DFF7E !important; }

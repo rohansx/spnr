@@ -1,0 +1,17 @@
+[package]
+name = "spnr-hook"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0"
+description = "HOT-PATH hook forwarder: skim 3 keys off stdin, datagram to the daemon socket, exit. Dependency-lean, < 1 MB stripped, exit <= 50 ms, NEVER panics, ALWAYS exits 0 (invariant 1)."
+
+[[bin]]
+name = "spnr-hook"
+path = "src/main.rs"
+
+# HOT PATH: only spnr-proto (for the socket datagram schema) + std. NO tokio,
+# NO serde_json, NO keyring, NO notify, NO reqwest (09 §5). stdin is skimmed by a
+# hand-rolled extractor for exactly {hook_event_name, session_id} (07 §2.1) — it
+# links no general JSON deserializer.
+[dependencies]
+spnr-proto = { workspace = true }

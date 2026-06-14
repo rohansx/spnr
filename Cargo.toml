@@ -1,0 +1,62 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/spnr-proto",
+    "crates/spnr-hook",
+    "crates/spnr-status",
+    "crates/spnr-settings",
+    "crates/spnr-meta",
+    "crates/spnr-adapters",
+    "crates/spnrd",
+    "crates/spnr-cli",
+    "server/spnr-server",
+]
+
+# Shared dependency table. Every crate references these with `dep.workspace = true`
+# so there is NO per-crate version drift. Concrete versions are resolved with
+# `cargo add` against crates.io (see docs/09-repo-build-layout.md §3).
+#
+# NOTE (two-serializer rule, 09 §4): serde_json is built with `preserve_order`
+# workspace-wide because of feature unification. spnr-proto MUST NOT rely on
+# serde_json key ordering for canonicalization — it uses serde_jcs (RFC 8785)
+# on a separate code path.
+[workspace.dependencies]
+# --- shared serialization ---
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_jcs = "0.1"
+# --- crypto / ids / hashing (hot-path-lean) ---
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+blake3 = "1"
+ulid = "1"
+data-encoding = "2"
+# --- daemon / async (NEVER in hot path) ---
+tokio = { version = "1", features = ["rt-multi-thread", "net", "time", "macros", "io-util", "sync"] }
+notify = "8"
+# --- backend (server) + daemon http client (localhost, http-only, no TLS) ---
+axum = "0.8"
+ureq = { version = "2", default-features = false, features = ["json"] }
+# --- filesystem / cli / errors ---
+tempfile = "3"
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
+thiserror = "2"
+
+# --- internal crates ---
+spnr-proto = { path = "crates/spnr-proto" }
+spnr-settings = { path = "crates/spnr-settings" }
+spnr-meta = { path = "crates/spnr-meta" }
+spnr-adapters = { path = "crates/spnr-adapters" }
+
+# ----------------------------------------------------------------------------
+# Release profiles. The hot-path binaries (spnr-hook, spnr-status) use a
+# dedicated size-optimized profile (09 §5): panic=abort, opt-level="z",
+# strip, thin-lto, single codegen unit. < 1 MB stripped is enforced in ci/.
+# ----------------------------------------------------------------------------
+[profile.release-hot]
+inherits = "release"
+opt-level = "z"
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true

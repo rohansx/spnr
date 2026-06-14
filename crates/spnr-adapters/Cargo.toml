@@ -1,0 +1,13 @@
+[package]
+name = "spnr-adapters"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0"
+description = "HostAdapter implementations (inject/restore/event_source) — the platform-risk firewall (ADR-0004). Thin: reads hooks/statusline, writes spinnerVerbs only."
+
+[dependencies]
+spnr-settings = { workspace = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true

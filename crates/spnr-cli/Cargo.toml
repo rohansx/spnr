@@ -1,0 +1,20 @@
+[package]
+name = "spnr-cli"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0"
+description = "The `spnr` user CLI: login/status/redeem/pause/resume/audit/uninstall. A thin client of the daemon socket."
+
+[[bin]]
+name = "spnr"
+path = "src/main.rs"
+
+[dependencies]
+spnr-proto = { workspace = true }
+spnr-settings = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true

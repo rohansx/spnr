@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; padding: 0; background: #060807; }
+    body { -webkit-font-smoothing: antialiased; }
+    @keyframes spnr-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    ::selection { background: rgba(61,255,126,0.25); }
+    input:focus { outline: none; }
+  </style>
+</helmet>
+
+<div style="min-height: 100vh; background: #060807; color: #C9D8CD; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 14px; line-height: 1.6; position: relative;">
+
+  <!-- CRT atmosphere -->
+  <div style="position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(61,255,126,0.06), transparent 70%); z-index: 0;"></div>
+  <div style="position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0px, transparent 2px, rgba(0,0,0,0.22) 2px, rgba(0,0,0,0.22) 3px); z-index: 0;"></div>
+
+  <div style="position: relative; z-index: 1; max-width: 1160px; margin: 0 auto; padding: 0 32px 72px;">
+
+    <!-- ============ TOP BAR ============ -->
+    <header data-screen-label="Advertiser top bar" style="display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 0; border-bottom: 1px solid #1C2A21; flex-wrap: wrap;">
+      <div style="display: flex; align-items: baseline; gap: 18px;">
+        <div style="font-family: 'Chakra Petch', sans-serif; font-weight: 700; font-size: 18px; letter-spacing: 0.06em; color: #3DFF7E; text-shadow: 0 0 16px rgba(61,255,126,0.4);">SPNR<span style="animation: spnr-blink 1.1s step-end infinite;">_</span></div>
+        <div style="font-size: 12px; color: #4A584F; letter-spacing: 0.06em;">ADVERTISER · spnr.co</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 24px; font-size: 12px; letter-spacing: 0.04em;">
+        <span style="color: #74867B;">escrow <span style="color: #FFB02E;">${{ escrow }}</span></span>
+        <span style="color: #3DFF7E;">● SLOT:SPINNER · MARKET OPEN</span>
+        <span style="color: #74867B;">ads<span>@</span>cloakpipe.dev</span>
+      </div>
+    </header>
+
+    <!-- ============ TABS ============ -->
+    <nav data-screen-label="Advertiser tabs" style="display: flex; gap: 4px; padding: 18px 0 0; font-size: 12.5px; letter-spacing: 0.08em;">
+      <button onClick="{{ goBids }}" style="{{ tabBidsStyle }}">BID BOARD</button>
+      <button onClick="{{ goCampaigns }}" style="{{ tabCampaignsStyle }}">CAMPAIGNS</button>
+      <button onClick="{{ goCreatives }}" style="{{ tabCreativesStyle }}">CREATIVES</button>
+      <button onClick="{{ goFunding }}" style="{{ tabFundingStyle }}">FUNDING</button>
+    </nav>
+
+    <!-- ============ BID BOARD ============ -->
+    <sc-if value="{{ showBids }}" hint-placeholder-val="{{ true }}">
+      <section data-screen-label="Bid board" style="padding-top: 24px; display: flex; flex-direction: column; gap: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap;">
+          <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B;">OPEN ASCENDING AUCTION — HIGHEST BID SERVES FIRST · BLOCKS OF 1,000 × 5s · CLICKS AT 50× · MIN $1.00</div>
+          <div style="font-size: 11.5px; color: #4A584F;">auction logic is <span style="color: #3DFF7E;">open source</span> — verify it</div>
+        </div>
+
+        <div style="border: 1px solid #1C2A21; background: #080B09;">
+          <div style="display: grid; grid-template-columns: 70px 1fr 170px 150px 150px; padding: 12px 18px; border-bottom: 1px solid #1C2A21; font-size: 10.5px; letter-spacing: 0.1em; color: #4A584F;">
+            <span>RANK</span><span>ADVERTISER</span><span style="text-align: right;">BID / BLOCK</span><span style="text-align: right;">PER IMPRESSION</span><span style="text-align: right;">STATUS</span>
+          </div>
+          <sc-for list="{{ bids }}" as="b" hint-placeholder-count="5">
+            <div style="{{ b.rowStyle }}">
+              <span style="color: #4A584F;">{{ b.rank }}</span>
+              <span style="{{ b.nameStyle }}">{{ b.name }}</span>
+              <span style="color: #E6F0E8; text-align: right;">${{ b.bid }}</span>
+              <span style="color: #74867B; text-align: right;">${{ b.perImp }}</span>
+              <span style="{{ b.statusStyle }}">{{ b.status }}</span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="border: 1px solid #1C2A21; background: #080B09; padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 11px; letter-spacing: 0.1em; color: #74867B;">YOUR BID — cloakpipe-launch-06</span>
+            <span style="font-family: 'Chakra Petch', sans-serif; font-size: 30px; font-weight: 700; color: #E6F0E8;">${{ myBid }} <span style="font-size: 13px; color: #74867B; font-family: 'IBM Plex Mono', ui-monospace, monospace;">/ block · {{ myStatusLine }}</span></span>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button onClick="{{ raiseBidSmall }}" style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; padding: 13px 22px; background: transparent; color: #3DFF7E; border: 1px solid #3DFF7E; cursor: pointer;" style-hover="background: #0C1410;">+ $0.50</button>
+            <button onClick="{{ raiseBidTop }}" style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; padding: 13px 22px; background: #3DFF7E; color: #060807; border: 1px solid #3DFF7E; cursor: pointer;" style-hover="background: #FFB02E; border-color: #FFB02E;">TAKE TOP →</button>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- ============ CAMPAIGNS ============ -->
+    <sc-if value="{{ showCampaigns }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Campaigns" style="padding-top: 24px; display: flex; flex-direction: column; gap: 24px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 1px; background: #1C2A21; border: 1px solid #1C2A21;">
+          <div style="background: #080B09; padding: 24px 24px 20px;">
+            <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B; margin-bottom: 10px;">IMPRESSIONS — 30D</div>
+            <div style="font-family: 'Chakra Petch', sans-serif; font-size: 38px; font-weight: 700; line-height: 1; color: #E6F0E8;">412,309</div>
+            <div style="font-size: 11.5px; color: #4A584F; margin-top: 10px;">attested, anomaly-filtered</div>
+          </div>
+          <div style="background: #080B09; padding: 24px 24px 20px;">
+            <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B; margin-bottom: 10px;">CLICKS</div>
+            <div style="font-family: 'Chakra Petch', sans-serif; font-size: 38px; font-weight: 700; line-height: 1; color: #FFB02E;">1,649</div>
+            <div style="font-size: 11.5px; color: #4A584F; margin-top: 10px;">0.40% CTR · billed at 50×</div>
+          </div>
+          <div style="background: #080B09; padding: 24px 24px 20px;">
+            <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B; margin-bottom: 10px;">ATTESTATION COVERAGE</div>
+            <div style="font-family: 'Chakra Petch', sans-serif; font-size: 38px; font-weight: 700; line-height: 1; color: #3DFF7E;">98.7%</div>
+            <div style="font-size: 11.5px; color: #4A584F; margin-top: 10px;">signed events / total served</div>
+          </div>
+          <div style="background: #080B09; padding: 24px 24px 20px;">
+            <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B; margin-bottom: 10px;">SPEND — 30D</div>
+            <div style="font-family: 'Chakra Petch', sans-serif; font-size: 38px; font-weight: 700; line-height: 1; color: #E6F0E8;">$5,442</div>
+            <div style="font-size: 11.5px; color: #4A584F; margin-top: 10px;">settled hourly, on-chain batches</div>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #1C2A21; background: #080B09;">
+          <div style="display: grid; grid-template-columns: 1fr 130px 110px 110px 130px 120px; padding: 12px 18px; border-bottom: 1px solid #1C2A21; font-size: 10.5px; letter-spacing: 0.1em; color: #4A584F;">
+            <span>CAMPAIGN</span><span style="text-align: right;">IMPRESSIONS</span><span style="text-align: right;">CLICKS</span><span style="text-align: right;">CTR</span><span style="text-align: right;">SPEND</span><span style="text-align: right;">STATUS</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 130px 110px 110px 130px 120px; padding: 13px 18px; border-bottom: 1px solid #111813; font-size: 12.5px; background: #0C1410;">
+            <span style="color: #3DFF7E;">cloakpipe-launch-06</span>
+            <span style="color: #E6F0E8; text-align: right;">238,114</span>
+            <span style="color: #9FB1A4; text-align: right;">1,002</span>
+            <span style="color: #9FB1A4; text-align: right;">0.42%</span>
+            <span style="color: #E6F0E8; text-align: right;">$3,194</span>
+            <span style="color: #3DFF7E; text-align: right;">SERVING</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 130px 110px 110px 130px 120px; padding: 13px 18px; border-bottom: 1px solid #111813; font-size: 12.5px;">
+            <span style="color: #9FB1A4;">cloakpipe-ci-secrets-04</span>
+            <span style="color: #E6F0E8; text-align: right;">141,650</span>
+            <span style="color: #9FB1A4; text-align: right;">512</span>
+            <span style="color: #9FB1A4; text-align: right;">0.36%</span>
+            <span style="color: #E6F0E8; text-align: right;">$1,818</span>
+            <span style="color: #FFB02E; text-align: right;">OUTBID</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 130px 110px 110px 130px 120px; padding: 13px 18px; font-size: 12.5px;">
+            <span style="color: #9FB1A4;">cloakpipe-hn-launch-03</span>
+            <span style="color: #E6F0E8; text-align: right;">32,545</span>
+            <span style="color: #9FB1A4; text-align: right;">135</span>
+            <span style="color: #9FB1A4; text-align: right;">0.41%</span>
+            <span style="color: #E6F0E8; text-align: right;">$430</span>
+            <span style="color: #4A584F; text-align: right;">COMPLETED</span>
+          </div>
+        </div>
+
+        <div style="font-size: 11.5px; color: #4A584F; max-width: 80ch;">Honesty note, as published: terminal impressions are attested + anomaly-filtered, not IAB-viewability-grade. Coverage rates above are per-campaign and downloadable — the methodology is public.</div>
+      </section>
+    </sc-if>
+
+    <!-- ============ CREATIVES ============ -->
+    <sc-if value="{{ showCreatives }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Creatives" style="padding-top: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 24px; align-items: start;">
+
+        <div style="border: 1px solid #1C2A21; background: #080B09; padding: 24px; display: flex; flex-direction: column; gap: 18px;">
+          <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B;">SUBMIT CREATIVE — LINTED LIVE AGAINST CONTENT RULES</div>
+          <input value="{{ creativeText }}" onChange="{{ onCreativeInput }}" spellcheck="false" style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 14px; padding: 14px 16px; background: #060807; border: 1px solid #1C2A21; color: #E6F0E8; width: 100%; box-sizing: border-box;" />
+          <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12.5px;">
+            <div style="display: flex; justify-content: space-between; gap: 12px;"><span style="color: #9FB1A4;">length ≤ 48 chars</span><span style="{{ lintLenStyle }}">{{ lintLen }}</span></div>
+            <div style="display: flex; justify-content: space-between; gap: 12px;"><span style="color: #9FB1A4;">allow-listed charset · no ANSI escapes</span><span style="{{ lintCharsStyle }}">{{ lintChars }}</span></div>
+            <div style="display: flex; justify-content: space-between; gap: 12px;"><span style="color: #9FB1A4;">plain text + one trailing ↗</span><span style="{{ lintArrowStyle }}">{{ lintArrow }}</span></div>
+            <div style="display: flex; justify-content: space-between; gap: 12px;"><span style="color: #9FB1A4;">destination domain verified</span><span style="color: #3DFF7E;">✓ cloakpipe.dev</span></div>
+          </div>
+          <button onClick="{{ submitCreative }}" style="{{ submitStyle }}">{{ submitLabel }}</button>
+          <sc-if value="{{ submittedOk }}" hint-placeholder-val="{{ false }}">
+            <div style="border: 1px solid #3DFF7E; background: #0C1410; padding: 12px 16px; font-size: 12.5px; color: #3DFF7E;">✓ submitted — signed by the network key, eligible to serve when your bid wins.</div>
+          </sc-if>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+          <div style="border: 1px solid #1C2A21; background: #080B09; padding: 24px; display: flex; flex-direction: column; gap: 14px;">
+            <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B;">LIVE PREVIEW — HOW IT RENDERS IN A SPINNER</div>
+            <div style="border: 1px solid #1C2A21; background: #060807; padding: 18px; font-size: 13.5px; line-height: 1.9;">
+              <div style="color: #4A584F;">⏺ Read worker.rs · Edited 2 files</div>
+              <div><span style="color: #FFB02E;">{{ glyph }}</span> <span style="color: #FFB02E;">{{ previewText }}</span> <span style="color: #4A584F;">(esc to interrupt)</span></div>
+            </div>
+            <div style="font-size: 11.5px; color: #4A584F;">{{ charCount }}/48 · clients strip anything not on the allow-list before display</div>
+          </div>
+
+          <div style="border: 1px solid #1C2A21; background: #080B09; padding: 24px; display: flex; flex-direction: column; gap: 10px; font-size: 12.5px;">
+            <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B; margin-bottom: 6px;">ACTIVE CREATIVES</div>
+            <div style="display: flex; justify-content: space-between; gap: 12px;"><span style="color: #E6F0E8;">CloakPipe — secrets that never touch disk ↗</span><span style="color: #3DFF7E;">SERVING</span></div>
+            <div style="display: flex; justify-content: space-between; gap: 12px;"><span style="color: #9FB1A4;">CloakPipe — your CI has secrets. keep them ↗</span><span style="color: #4A584F;">QUEUED</span></div>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- ============ FUNDING ============ -->
+    <sc-if value="{{ showFunding }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Funding" style="padding-top: 24px; display: flex; flex-direction: column; gap: 24px; max-width: 760px;">
+        <div style="border: 1px solid #1C2A21; background: #080B09; padding: 24px; display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 11px; letter-spacing: 0.1em; color: #74867B;">ESCROW BALANCE</span>
+            <span style="font-family: 'Chakra Petch', sans-serif; font-size: 38px; font-weight: 700; color: #FFB02E;">${{ escrow }}</span>
+            <span style="font-size: 11.5px; color: #4A584F;">released per verified impression · unspent escrow is refundable, always</span>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button onClick="{{ fundUsdc }}" style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; padding: 13px 22px; background: #3DFF7E; color: #060807; border: 1px solid #3DFF7E; cursor: pointer;" style-hover="background: #FFB02E; border-color: #FFB02E;">FUND — USDC · x402</button>
+            <button onClick="{{ fundCard }}" style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; padding: 13px 22px; background: transparent; color: #3DFF7E; border: 1px solid #3DFF7E; cursor: pointer;" style-hover="background: #0C1410;">FUND — CARD</button>
+          </div>
+        </div>
+
+        <sc-if value="{{ funded }}" hint-placeholder-val="{{ false }}">
+          <div style="border: 1px solid #3DFF7E; background: #0C1410; padding: 14px 18px; font-size: 12.5px; color: #3DFF7E;">✓ +$500.00 escrowed via {{ fundMethod }} — available immediately.</div>
+        </sc-if>
+
+        <div style="border: 1px solid #1C2A21; background: #080B09;">
+          <div style="display: grid; grid-template-columns: 140px 1fr 140px 130px; padding: 12px 18px; border-bottom: 1px solid #1C2A21; font-size: 10.5px; letter-spacing: 0.1em; color: #4A584F;">
+            <span>TIME</span><span>SETTLEMENT</span><span style="text-align: right;">IMPRESSIONS</span><span style="text-align: right;">AMOUNT</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 140px 1fr 140px 130px; padding: 12px 18px; border-bottom: 1px solid #111813; font-size: 12.5px;">
+            <span style="color: #74867B;">14:00 UTC</span><span style="color: #9FB1A4;">hourly batch · base · tx 0x8f2a…44c1</span><span style="color: #E6F0E8; text-align: right;">3,204</span><span style="color: #FF8A8A; text-align: right;">−$35.24</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 140px 1fr 140px 130px; padding: 12px 18px; border-bottom: 1px solid #111813; font-size: 12.5px;">
+            <span style="color: #74867B;">13:00 UTC</span><span style="color: #9FB1A4;">hourly batch · base · tx 0x3d97…b02e</span><span style="color: #E6F0E8; text-align: right;">2,988</span><span style="color: #FF8A8A; text-align: right;">−$32.87</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 140px 1fr 140px 130px; padding: 12px 18px; font-size: 12.5px;">
+            <span style="color: #74867B;">12:00 UTC</span><span style="color: #9FB1A4;">escrow top-up · USDC via x402</span><span style="color: #4A584F; text-align: right;">—</span><span style="color: #3DFF7E; text-align: right;">+$500.00</span>
+          </div>
+        </div>
+
+        <div style="font-size: 11.5px; color: #4A584F; max-width: 80ch;">All settlement is denominated in USD and executed as USDC micro-settlements over x402 on Base — off-chain ledger real-time, on-chain batches hourly. Phase 2: autonomous agents bid through the same rail.</div>
+      </section>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    tab: 'bids',
+    myBid: 11.0,
+    rivalBid: 14.5,
+    escrow: 1212.40,
+    frame: 0,
+    creativeText: 'CloakPipe \u2014 secrets that never touch disk \u2197',
+    submitted: false,
+    funded: false,
+    fundMethod: '',
+  };
+
+  glyphs = ['\u280B','\u2819','\u2839','\u2838','\u283C','\u2834','\u2826','\u2827','\u2807','\u280F'];
+
+  componentDidMount() {
+    this._spin = setInterval(() => {
+      this.setState(s => ({ frame: (s.frame + 1) % this.glyphs.length }));
+    }, 90);
+    // rival occasionally re-bids if outbid
+    this._rival = setInterval(() => {
+      this.setState(s => {
+        if (s.myBid > s.rivalBid && Math.random() < 0.5) {
+          return { rivalBid: Math.round((s.myBid + 0.5) * 100) / 100 };
+        }
+        return {};
+      });
+    }, 7000);
+  }
+
+  componentWillUnmount() {
+    clearInterval(this._spin);
+    clearInterval(this._rival);
+  }
+
+  tabStyle(active) {
+    return {
+      fontFamily: "'IBM Plex Mono', ui-monospace, monospace",
+      fontSize: '12.5px',
+      letterSpacing: '0.08em',
+      padding: '10px 20px',
+      cursor: 'pointer',
+      background: active ? '#0C1410' : 'transparent',
+      color: active ? '#3DFF7E' : '#74867B',
+      border: '1px solid ' + (active ? '#3DFF7E' : '#1C2A21'),
+      borderBottom: active ? '1px solid #0C1410' : '1px solid #1C2A21',
+    };
+  }
+
+  lint() {
+    const t = this.state.creativeText;
+    const lenOk = t.length <= 48 && t.length > 0;
+    const charsOk = /^[ -~\u2197\u2014\u00B7\u2026\u00E9]*$/.test(t);
+    const arrowOk = t.trim().endsWith('\u2197') && (t.match(/\u2197/g) || []).length === 1;
+    return { lenOk, charsOk, arrowOk, allOk: lenOk && charsOk && arrowOk };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const L = this.lint();
+    const serving = s.myBid > s.rivalBid;
+
+    const bidRows = [
+      { name: 'wirecat.dev', bid: s.rivalBid, mine: false },
+      { name: 'cloakpipe (you)', bid: s.myBid, mine: true },
+      { name: 'fluxgate.io', bid: 8.25, mine: false },
+      { name: 'bytefall.dev', bid: 4.2, mine: false },
+      { name: 'stackline.sh', bid: 1.0, mine: false },
+    ].sort((a, b) => b.bid - a.bid);
+
+    return {
+      // top bar
+      escrow: s.escrow.toFixed(2),
+      // tabs
+      showBids: s.tab === 'bids',
+      showCampaigns: s.tab === 'campaigns',
+      showCreatives: s.tab === 'creatives',
+      showFunding: s.tab === 'funding',
+      goBids: () => this.setState({ tab: 'bids' }),
+      goCampaigns: () => this.setState({ tab: 'campaigns' }),
+      goCreatives: () => this.setState({ tab: 'creatives' }),
+      goFunding: () => this.setState({ tab: 'funding' }),
+      tabBidsStyle: this.tabStyle(s.tab === 'bids'),
+      tabCampaignsStyle: this.tabStyle(s.tab === 'campaigns'),
+      tabCreativesStyle: this.tabStyle(s.tab === 'creatives'),
+      tabFundingStyle: this.tabStyle(s.tab === 'funding'),
+      // bid board
+      bids: bidRows.map((b, i) => ({
+        rank: '#' + (i + 1),
+        name: b.name,
+        bid: b.bid.toFixed(2),
+        perImp: (b.bid / 1000).toFixed(4),
+        status: i === 0 ? 'SERVING' : 'QUEUED',
+        rowStyle: {
+          display: 'grid',
+          gridTemplateColumns: '70px 1fr 170px 150px 150px',
+          padding: '13px 18px',
+          borderBottom: '1px solid #111813',
+          fontSize: '12.5px',
+          background: b.mine ? '#0C1410' : 'transparent',
+        },
+        nameStyle: { color: b.mine ? '#3DFF7E' : '#9FB1A4', fontWeight: b.mine ? 600 : 400 },
+        statusStyle: {
+          color: i === 0 ? '#3DFF7E' : '#4A584F',
+          textAlign: 'right',
+          letterSpacing: '0.06em',
+          fontSize: '11.5px',
+        },
+      })),
+      myBid: s.myBid.toFixed(2),
+      myStatusLine: serving ? 'serving now' : 'outbid \u2014 wirecat.dev holds the slot',
+      raiseBidSmall: () => this.setState(st => ({ myBid: Math.round((st.myBid + 0.5) * 100) / 100 })),
+      raiseBidTop: () => this.setState(st => ({ myBid: Math.round((Math.max(st.myBid, st.rivalBid) + 0.5) * 100) / 100 })),
+      // creatives
+      glyph: this.glyphs[s.frame],
+      creativeText: s.creativeText,
+      previewText: s.creativeText.slice(0, 48) || '\u2014 empty creative \u2014',
+      charCount: s.creativeText.length,
+      onCreativeInput: (e) => this.setState({ creativeText: e.target.value, submitted: false }),
+      lintLen: L.lenOk ? '\u2713 ' + s.creativeText.length + '/48' : '\u00d7 ' + s.creativeText.length + '/48',
+      lintLenStyle: { color: L.lenOk ? '#3DFF7E' : '#FF5C5C' },
+      lintChars: L.charsOk ? '\u2713 clean' : '\u00d7 disallowed chars',
+      lintCharsStyle: { color: L.charsOk ? '#3DFF7E' : '#FF5C5C' },
+      lintArrow: L.arrowOk ? '\u2713 ok' : '\u00d7 must end with one \u2197',
+      lintArrowStyle: { color: L.arrowOk ? '#3DFF7E' : '#FF5C5C' },
+      submitLabel: L.allOk ? 'SUBMIT FOR REVIEW \u2192' : 'FIX LINT ERRORS FIRST',
+      submitStyle: {
+        fontFamily: "'IBM Plex Mono', ui-monospace, monospace",
+        fontSize: '13px',
+        fontWeight: 600,
+        letterSpacing: '0.08em',
+        padding: '14px 24px',
+        background: L.allOk ? '#3DFF7E' : 'transparent',
+        color: L.allOk ? '#060807' : '#4A584F',
+        border: '1px solid ' + (L.allOk ? '#3DFF7E' : '#1C2A21'),
+        cursor: L.allOk ? 'pointer' : 'not-allowed',
+      },
+      submitCreative: () => { if (this.lint().allOk) this.setState({ submitted: true }); },
+      submittedOk: s.submitted,
+      // funding
+      funded: s.funded,
+      fundMethod: s.fundMethod,
+      fundUsdc: () => this.setState(st => ({ funded: true, fundMethod: 'USDC \u00b7 x402', escrow: st.escrow + 500 })),
+      fundCard: () => this.setState(st => ({ funded: true, fundMethod: 'card', escrow: st.escrow + 500 })),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/vendor/react.production.min.js"></script>
+<script src="/vendor/react-dom.production.min.js"></script>
+<script src="/support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; padding: 0; background: #060807; }
+    body { -webkit-font-smoothing: antialiased; }
+    @keyframes spnr-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+    ::selection { background: rgba(61,255,126,0.25); }
+  </style>
+</helmet>
+
+<div style="min-height: 100vh; background: #060807; color: #C9D8CD; font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 14px; line-height: 1.6; position: relative;">
+
+  <!-- CRT atmosphere -->
+  <div style="position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(61,255,126,0.06), transparent 70%); z-index: 0;"></div>
+  <div style="position: fixed; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, transparent 0px, transparent 2px, rgba(0,0,0,0.22) 2px, rgba(0,0,0,0.22) 3px); z-index: 0;"></div>
+
+  <div style="position: relative; z-index: 1; max-width: 1160px; margin: 0 auto; padding: 0 32px 72px;">
+
+    <!-- ============ TOP BAR ============ -->
+    <header data-screen-label="Console top bar" style="display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px 0; border-bottom: 1px solid #1C2A21;">
+      <div style="display: flex; align-items: baseline; gap: 18px;">
+        <div style="font-family: 'Chakra Petch', sans-serif; font-weight: 700; font-size: 18px; letter-spacing: 0.06em; color: #3DFF7E; text-shadow: 0 0 16px rgba(61,255,126,0.4);">SPNR<span style="animation: spnr-blink 1.1s step-end infinite;">_</span></div>
+        <div style="font-size: 12px; color: #4A584F; letter-spacing: 0.06em;">CONSOLE · spnr.co</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 24px; font-size: 12px; letter-spacing: 0.04em;">
+        <sc-if value="{{ running }}" hint-placeholder-val="{{ true }}">
+          <span style="color: #3DFF7E;">● DAEMON RUNNING</span>
+        </sc-if>
+        <sc-if value="{{ paused }}" hint-placeholder-val="{{ false }}">
+          <span style="color: #FF5C5C;">● PAUSED — STOCK VERBS RESTORED</span>
+        </sc-if>
+        <button onClick="{{ togglePause }}" style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 11.5px; letter-spacing: 0.08em; padding: 7px 14px; background: transparent; border: 1px solid #1C2A21; color: #9FB1A4; cursor: pointer;" style-hover="border-color: #3DFF7E; color: #3DFF7E;">{{ pauseLabel }}</button>
+        <span style="color: #74867B;">dev@rohan · in</span>
+      </div>
+    </header>
+
+    <!-- ============ TABS ============ -->
+    <nav data-screen-label="Console tabs" style="display: flex; gap: 4px; padding: 18px 0 0; font-size: 12.5px; letter-spacing: 0.08em;">
+      <button onClick="{{ goOverview }}" style="{{ tabOverviewStyle }}">OVERVIEW</button>
+      <button onClick="{{ goLedger }}" style="{{ tabLedgerStyle }}">LEDGER</button>
+      <button onClick="{{ goRedeem }}" style="{{ tabRedeemStyle }}">REDEEM</button>
+      <button onClick="{{ goSettings }}" style="{{ tabSettingsStyle }}">SETTINGS</button>
+    </nav>
+
+    <!-- ============ OVERVIEW ============ -->
+    <sc-if value="{{ showOverview }}" hint-placeholder-val="{{ true }}">
+      <section data-screen-label="Overview" style="display: flex; flex-direction: column; gap: 24px; padding-top: 24px;">
+
+        <!-- stat row -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 1px; background: #1C2A21; border: 1px solid #1C2A21;">
+          <div style="background: #080B09; padding: 24px 24px 20px;">
+            <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B; margin-bottom: 10px;">BALANCE — USD, ALWAYS</div>
+            <div style="font-family: 'Chakra Petch', sans-serif; font-size: 42px; font-weight: 700; line-height: 1; color: #3DFF7E; text-shadow: 0 0 22px rgba(61,255,126,0.35);" data-testid="balance">${{ balance }}</div>
+            <div style="font-size: 11.5px; color: #4A584F; margin-top: 10px;">7-day fraud hold: <span style="color: #9FB1A4;">$1.82</span> releasing</div>
+          </div>
+          <div style="background: #080B09; padding: 24px 24px 20px;">
+            <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B; margin-bottom: 10px;">TODAY</div>
+            <div style="font-family: 'Chakra Petch', sans-serif; font-size: 42px; font-weight: 700; line-height: 1; color: #E6F0E8;" data-testid="impressions">{{ impressions }}</div>
+            <div style="font-size: 11.5px; color: #4A584F; margin-top: 10px;">impressions · <span style="color: #FFB02E;">${{ todayEarned }}</span> earned</div>
+          </div>
+          <div style="background: #080B09; padding: 24px 24px 20px;">
+            <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B; margin-bottom: 10px;">LIFETIME</div>
+            <div style="font-family: 'Chakra Petch', sans-serif; font-size: 42px; font-weight: 700; line-height: 1; color: #E6F0E8;" data-testid="lifetime">${{ lifetime }}</div>
+            <div style="font-size: 11.5px; color: #4A584F; margin-top: 10px;">since install · 19,482 attested impressions</div>
+          </div>
+          <div style="background: #080B09; padding: 24px 24px 20px;">
+            <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B; margin-bottom: 10px;">ATTESTATION</div>
+            <div style="font-family: 'Chakra Petch', sans-serif; font-size: 42px; font-weight: 700; line-height: 1; color: #3DFF7E;" data-testid="attestation">{{ attestation }}%</div>
+            <div style="font-size: 11.5px; color: #4A584F; margin-top: 10px;">events signed &amp; accepted · 0 flagged</div>
+          </div>
+        </div>
+
+        <!-- chart + current creative -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 24px;">
+          <div style="border: 1px solid #1C2A21; background: #080B09; padding: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 22px;">
+              <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B;">EARNINGS — LAST 14 DAYS</div>
+              <div style="font-size: 11.5px; color: #4A584F;">avg <span style="color: #9FB1A4;">$1.53/day</span></div>
+            </div>
+            <div style="display: flex; align-items: flex-end; gap: 6px; height: 140px;">
+              <sc-for list="{{ days }}" as="d" hint-placeholder-count="14">
+                <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%;" title="{{ d.label }}">
+                  <div style="{{ d.barStyle }}"></div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 10.5px; color: #4A584F;">
+              <span>MAY 30</span><span>JUN 12</span>
+            </div>
+          </div>
+
+          <div style="border: 1px solid #1C2A21; background: #080B09; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+            <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B;">CURRENT CREATIVE — SLOT:SPINNER</div>
+            <sc-if value="{{ running }}" hint-placeholder-val="{{ true }}">
+              <div style="border: 1px solid #1C2A21; background: #060807; padding: 18px; font-size: 13.5px; line-height: 1.9;">
+                <sc-if value="{{ sponsored }}" hint-placeholder-val="{{ false }}">
+                  <div><span style="color: #FFB02E;">{{ glyph }}</span> <span style="color: #FFB02E;">{{ verb }}</span></div>
+                </sc-if>
+                <sc-if value="{{ notSponsored }}" hint-placeholder-val="{{ true }}">
+                  <div><span style="color: #3DFF7E;">{{ glyph }}</span> <span style="color: #9FB1A4;">{{ verb }}</span></div>
+                </sc-if>
+              </div>
+            </sc-if>
+            <sc-if value="{{ paused }}" hint-placeholder-val="{{ false }}">
+              <div style="border: 1px solid #1C2A21; background: #060807; padding: 18px; font-size: 13.5px; color: #4A584F;">— paused · your stock spinner verbs are live, snapshot restored —</div>
+            </sc-if>
+            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #74867B;">
+              <div style="display: flex; justify-content: space-between;"><span>campaign</span><span style="color: #9FB1A4;">cloakpipe-launch-06</span></div>
+              <div style="display: flex; justify-content: space-between;"><span>your cut per impression</span><span style="color: #3DFF7E;">$0.0055 (50%)</span></div>
+              <div style="display: flex; justify-content: space-between;"><span>creative signature</span><span style="color: #3DFF7E;">✓ verified · pinned key</span></div>
+              <div style="display: flex; justify-content: space-between;"><span>ttl</span><span style="color: #9FB1A4;">42s · refetch on expiry</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- ============ LEDGER ============ -->
+    <sc-if value="{{ showLedger }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Ledger" style="padding-top: 24px; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap;">
+          <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B;">APPEND-ONLY EVENT LEDGER — EVERYTHING YOUR MACHINE SENT, NOTHING ELSE</div>
+          <div style="font-size: 11.5px; color: #4A584F;">same data as&nbsp; <span style="color: #3DFF7E;">spnr audit</span> &nbsp;· export jsonl ↓</div>
+        </div>
+        <div style="border: 1px solid #1C2A21; background: #080B09;">
+          <div style="display: grid; grid-template-columns: 110px 150px 1fr 120px 90px 110px; gap: 0; padding: 12px 18px; border-bottom: 1px solid #1C2A21; font-size: 10.5px; letter-spacing: 0.1em; color: #4A584F;">
+            <span>TIME</span><span>EVENT ID</span><span>CREATIVE</span><span>TYPE</span><span>SIG</span><span style="text-align: right;">AMOUNT</span>
+          </div>
+          <sc-for list="{{ events }}" as="e" hint-placeholder-count="8">
+            <div style="display: grid; grid-template-columns: 110px 150px 1fr 120px 90px 110px; gap: 0; padding: 11px 18px; border-bottom: 1px solid #111813; font-size: 12.5px;">
+              <span style="color: #74867B;">{{ e.time }}</span>
+              <span style="color: #4A584F;">{{ e.id }}</span>
+              <span style="color: #9FB1A4;">{{ e.creative }}</span>
+              <span style="{{ e.typeStyle }}">{{ e.type }}</span>
+              <span style="color: #3DFF7E;">✓ ed25519</span>
+              <span style="{{ e.amtStyle }}">{{ e.amount }}</span>
+            </div>
+          </sc-for>
+          <div style="padding: 12px 18px; font-size: 11.5px; color: #4A584F;">…19,482 earlier events · monotonic counter intact · no gaps detected</div>
+        </div>
+      </section>
+    </sc-if>
+
+    <!-- ============ REDEEM ============ -->
+    <sc-if value="{{ showRedeem }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Redeem" style="padding-top: 24px; display: flex; flex-direction: column; gap: 24px; max-width: 760px;">
+        <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B;">REDEEM — AVAILABLE NOW: <span style="color: #3DFF7E;">${{ balance }}</span> &nbsp;·&nbsp; NO MINIMUM, NO WAITING PERIOD</div>
+
+        <div style="display: flex; flex-direction: column; gap: 1px; background: #1C2A21; border: 1px solid #1C2A21;">
+          <button onClick="{{ pickCredits }}" style="{{ methodCreditsStyle }}">
+            <span style="font-family: 'Chakra Petch', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.04em; white-space: nowrap;">API CREDITS</span>
+            <span style="font-size: 12.5px; color: #74867B;">Claude or OpenAI credits, or subscription offset. Instant. Default.</span>
+          </button>
+          <button onClick="{{ pickGift }}" style="{{ methodGiftStyle }}">
+            <span style="font-family: 'Chakra Petch', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.04em; white-space: nowrap;">GIFT CARD</span>
+            <span style="font-size: 12.5px; color: #74867B;">Delivered to your account email. Works in every country.</span>
+          </button>
+          <button onClick="{{ pickUsdc }}" style="{{ methodUsdcStyle }}">
+            <span style="font-family: 'Chakra Petch', sans-serif; font-weight: 600; font-size: 16px; letter-spacing: 0.04em; white-space: nowrap;">USDC · x402</span>
+            <span style="font-size: 12.5px; color: #74867B;">To your wallet, over the same rail that settles the network. Opt-in. Taxes are yours — docs linked.</span>
+          </button>
+        </div>
+
+        <div style="border: 1px solid #1C2A21; background: #080B09; padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 11px; letter-spacing: 0.1em; color: #74867B;">REDEEMING</span>
+            <span style="font-family: 'Chakra Petch', sans-serif; font-size: 30px; font-weight: 700; color: #E6F0E8;">${{ balance }} <span style="font-size: 14px; color: #74867B; font-family: 'IBM Plex Mono', ui-monospace, monospace;">→ {{ methodLabel }}</span></span>
+          </div>
+          <button onClick="{{ confirmRedeem }}" style="font-family: 'IBM Plex Mono', ui-monospace, monospace; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; padding: 14px 28px; background: #3DFF7E; color: #060807; border: none; cursor: pointer;" style-hover="background: #FFB02E;">CONFIRM →</button>
+        </div>
+
+        <sc-if value="{{ redeemed }}" hint-placeholder-val="{{ false }}">
+          <div style="border: 1px solid #3DFF7E; background: #0C1410; padding: 16px 20px; font-size: 13px; color: #3DFF7E;">✓ queued — {{ methodLabel }} lands in ~60s. Receipt appended to your ledger.</div>
+        </sc-if>
+      </section>
+    </sc-if>
+
+    <!-- ============ SETTINGS ============ -->
+    <sc-if value="{{ showSettings }}" hint-placeholder-val="{{ false }}">
+      <section data-screen-label="Settings" style="padding-top: 24px; display: flex; flex-direction: column; gap: 24px; max-width: 760px;">
+        <div style="border: 1px solid #1C2A21; background: #080B09; padding: 24px;">
+          <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B; margin-bottom: 16px;">DEVICES — ED25519 KEYS REGISTERED TO THIS ACCOUNT</div>
+          <div style="display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid #111813; font-size: 13px; flex-wrap: wrap;">
+            <span style="color: #E6F0E8;">this machine <span style="color: #4A584F;">· macOS arm64 · spnrd 0.2.3</span></span>
+            <span style="color: #74867B;">key <span style="color: #3DFF7E;">a7f2…c91d</span> · active now</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; font-size: 13px; flex-wrap: wrap;">
+            <span style="color: #E6F0E8;">devbox <span style="color: #4A584F;">· linux x86_64 · spnrd 0.2.3</span></span>
+            <span style="color: #74867B;">key <span style="color: #3DFF7E;">e310…88ab</span> · 2h ago</span>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #1C2A21; background: #080B09; padding: 24px; display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+          <div style="font-size: 11px; letter-spacing: 0.1em; color: #74867B; margin-bottom: 8px;">TELEMETRY — THE WHOLE LIST</div>
+          <div style="display: flex; justify-content: space-between;"><span style="color: #9FB1A4;">ad events (type, creative id, timestamp)</span><span style="color: #3DFF7E;">sent · signed</span></div>
+          <div style="display: flex; justify-content: space-between;"><span style="color: #9FB1A4;">install metadata (os / arch / version)</span><span style="color: #3DFF7E;">sent</span></div>
+          <div style="display: flex; justify-content: space-between;"><span style="color: #9FB1A4;">code, prompts, paths, transcripts, env</span><span style="color: #FF5C5C;">never — structurally impossible</span></div>
+        </div>
+
+        <div style="border: 1px solid #1C2A21; background: #080B09; padding: 24px; display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <span style="font-size: 13px; color: #E6F0E8;">uninstall</span>
+            <span style="font-size: 12px; color: #4A584F;">spnr uninstall — full removal, settings snapshot restored, keys revoked</span>
+          </div>
+          <span style="font-size: 12px; color: #74867B; border: 1px solid #1C2A21; padding: 8px 14px;">run it in your terminal — not here</span>
+        </div>
+      </section>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    tab: 'overview',
+    paused: false,
+    frame: 0,
+    verbIdx: 0,
+    impressions: 132,
+    balance: 23.87,
+    lifetime: 214.30,
+    todayEarned: '23.87',
+    attestation: '99.2',
+    method: 'credits',
+    redeemed: false,
+  };
+
+  verbs = [
+    { t: 'Pondering\u2026', s: false },
+    { t: 'CloakPipe \u2014 secrets that never touch disk \u2197', s: true },
+    { t: 'Reticulating\u2026', s: false },
+    { t: 'ctxgraph \u2014 see what your agent sees \u2197', s: true },
+    { t: 'Brewing\u2026', s: false },
+  ];
+
+  glyphs = ['\u280B','\u2819','\u2839','\u2838','\u283C','\u2834','\u2826','\u2827','\u2807','\u280F'];
+
+  // NOTE: 14-day earnings chart is a design visual only (static mock). It needs a real
+  // time-series endpoint (e.g. /api/stats?series=14d) to go live — deferred to v0.2.
+  dayVals = [0.9, 1.2, 0.7, 1.6, 1.4, 1.1, 1.9, 2.2, 1.7, 1.3, 2.4, 1.8, 1.6, 1.45];
+
+  rawEvents = [
+    { time: '14:32:08', id: '01J9ZK3V…8QF2', creative: 'cloakpipe-launch-06', type: 'impression', amount: '+$0.0055' },
+    { time: '14:31:42', id: '01J9ZK2T…X4MD', creative: 'cloakpipe-launch-06', type: 'impression', amount: '+$0.0055' },
+    { time: '14:28:15', id: '01J9ZJWQ…7PNH', creative: 'ctxgraph-beta-02', type: 'click', amount: '+$0.2750' },
+    { time: '14:28:03', id: '01J9ZJW8…2KLB', creative: 'ctxgraph-beta-02', type: 'impression', amount: '+$0.0055' },
+    { time: '14:24:51', id: '01J9ZJNC…9RST', creative: 'ctxgraph-beta-02', type: 'impression', amount: '+$0.0055' },
+    { time: '14:24:37', id: '01J9ZJMV…D3WQ', creative: 'cloakpipe-launch-06', type: 'impression', amount: '+$0.0055' },
+    { time: '14:19:02', id: '01J9ZJB2…HH61', creative: 'cloakpipe-launch-06', type: 'impression', amount: '+$0.0055' },
+    { time: '14:18:48', id: '01J9ZJAK…0VXC', creative: 'ctxgraph-beta-02', type: 'impression', amount: '+$0.0055' },
+  ];
+
+  componentDidMount() {
+    // LIVE backend data — overrides the mock state with the real spnr-server ledger.
+    const pull = () => fetch('/api/stats')
+      .then(r => r.json())
+      .then(s => {
+        const balance = Math.round((s.total_balance_micros / 1e6) * 100) / 100;
+        this.setState({
+          impressions: s.total_impressions,
+          balance: balance,
+          lifetime: balance,                       // USD number, mirrors balance for now
+          todayEarned: balance.toFixed(2),         // 2dp string
+          attestation: (s.attestation_pct).toFixed(1), // 1dp string, 100.0 when no events
+        });
+      })
+      .catch(() => {}); // backend offline -> keep last values, never throw
+    pull();
+    this._live = setInterval(pull, 2000);
+
+    // spinner glyph animation (visual)
+    this._spin = setInterval(() => {
+      this.setState(s => ({ frame: (s.frame + 1) % this.glyphs.length }));
+    }, 90);
+    // creative verb rotation (visual only — impressions/balance come from the backend)
+    this._cycle = setInterval(() => {
+      this.setState(s => {
+        if (s.paused) return {};
+        return { verbIdx: (s.verbIdx + 1) % this.verbs.length };
+      });
+    }, 2600);
+  }
+
+  componentWillUnmount() {
+    clearInterval(this._live);
+    clearInterval(this._spin);
+    clearInterval(this._cycle);
+  }
+
+  tabStyle(active) {
+    return {
+      fontFamily: "'IBM Plex Mono', ui-monospace, monospace",
+      fontSize: '12.5px',
+      letterSpacing: '0.08em',
+      padding: '10px 20px',
+      cursor: 'pointer',
+      background: active ? '#0C1410' : 'transparent',
+      color: active ? '#3DFF7E' : '#74867B',
+      border: '1px solid ' + (active ? '#3DFF7E' : '#1C2A21'),
+      borderBottom: active ? '1px solid #0C1410' : '1px solid #1C2A21',
+    };
+  }
+
+  methodStyle(active) {
+    return {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+      alignItems: 'flex-start',
+      textAlign: 'left',
+      fontFamily: "'IBM Plex Mono', ui-monospace, monospace",
+      padding: '20px 24px',
+      cursor: 'pointer',
+      border: 'none',
+      background: active ? '#0C1410' : '#080B09',
+      color: active ? '#3DFF7E' : '#9FB1A4',
+      boxShadow: active ? 'inset 3px 0 0 #3DFF7E' : 'none',
+    };
+  }
+
+  renderVals() {
+    const s = this.state;
+    const v = this.verbs[s.verbIdx];
+    const max = Math.max(...this.dayVals);
+    const methodLabels = { credits: 'API credits', gift: 'gift card', usdc: 'USDC via x402' };
+    return {
+      // top bar
+      running: !s.paused,
+      paused: s.paused,
+      pauseLabel: s.paused ? 'RESUME' : 'PAUSE',
+      togglePause: () => this.setState(st => ({ paused: !st.paused })),
+      // tabs
+      showOverview: s.tab === 'overview',
+      showLedger: s.tab === 'ledger',
+      showRedeem: s.tab === 'redeem',
+      showSettings: s.tab === 'settings',
+      goOverview: () => this.setState({ tab: 'overview' }),
+      goLedger: () => this.setState({ tab: 'ledger' }),
+      goRedeem: () => this.setState({ tab: 'redeem' }),
+      goSettings: () => this.setState({ tab: 'settings' }),
+      tabOverviewStyle: this.tabStyle(s.tab === 'overview'),
+      tabLedgerStyle: this.tabStyle(s.tab === 'ledger'),
+      tabRedeemStyle: this.tabStyle(s.tab === 'redeem'),
+      tabSettingsStyle: this.tabStyle(s.tab === 'settings'),
+      // overview
+      balance: s.balance.toFixed(2),
+      impressions: s.impressions,
+      todayEarned: s.todayEarned,     // live: balance.toFixed(2) from /api/stats
+      lifetime: s.lifetime,           // live: USD number (mirrors balance), bound below
+      attestation: s.attestation,     // live: attestation_pct.toFixed(1) from /api/stats
+      glyph: this.glyphs[s.frame],
+      verb: v.t,
+      sponsored: !s.paused && v.s,
+      notSponsored: !s.paused && !v.s,
+      days: this.dayVals.map((val, i) => ({
+        label: '$' + val.toFixed(2),
+        barStyle: {
+          height: Math.round((val / max) * 100) + '%',
+          background: i === this.dayVals.length - 1 ? '#FFB02E' : '#3DFF7E',
+          opacity: i === this.dayVals.length - 1 ? 1 : 0.55 + (val / max) * 0.45,
+          minHeight: '3px',
+        },
+      })),
+      // ledger
+      events: this.rawEvents.map(e => ({
+        ...e,
+        typeStyle: { color: e.type === 'click' ? '#FFB02E' : '#74867B' },
+        amtStyle: { color: e.type === 'click' ? '#FFB02E' : '#3DFF7E', textAlign: 'right' },
+      })),
+      // redeem
+      methodLabel: methodLabels[s.method],
+      methodCreditsStyle: this.methodStyle(s.method === 'credits'),
+      methodGiftStyle: this.methodStyle(s.method === 'gift'),
+      methodUsdcStyle: this.methodStyle(s.method === 'usdc'),
+      pickCredits: () => this.setState({ method: 'credits', redeemed: false }),
+      pickGift: () => this.setState({ method: 'gift', redeemed: false }),
+      pickUsdc: () => this.setState({ method: 'usdc', redeemed: false }),
+      redeemed: s.redeemed,
+      confirmRedeem: () => this.setState({ redeemed: true }),
+    };
+  }
+}
+</script>
+</body>
+</html>

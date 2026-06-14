@@ -1,0 +1,25 @@
+[package]
+name = "spnrd"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0"
+description = "Long-running user daemon: ad cache + rotation, settings-merge state machine, impression engine, event signing/queue, self-update, socket API. ALL heavy deps are isolated HERE (uses the normal release profile with unwinding so it can recover and restore stock)."
+
+[[bin]]
+name = "spnrd"
+path = "src/main.rs"
+
+[dependencies]
+spnr-proto = { workspace = true }
+spnr-settings = { workspace = true }
+spnr-adapters = { workspace = true }
+tokio = { workspace = true }
+notify = { workspace = true }
+anyhow = { workspace = true }
+blake3.workspace = true
+ureq.workspace = true
+data-encoding.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

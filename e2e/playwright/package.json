@@ -1,0 +1,9 @@
+{
+  "name": "spnr-e2e-playwright",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Playwright dashboard check for the spnr E2E",
+  "dependencies": {
+    "playwright": "^1.60.0"
+  }
+}

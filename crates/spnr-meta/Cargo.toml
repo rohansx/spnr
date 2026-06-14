@@ -1,0 +1,12 @@
+[package]
+name = "spnr-meta"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0"
+description = "Content-firewalled JSONL timing reader (reconciliation cross-check only). Structurally incapable of reading work-product fields; gated by the ci/ AST deny-list (07 §2.2)."
+
+# DELIBERATELY no serde / serde_json dependency: this crate reads ONLY timing
+# scalars (a unix-seconds timestamp + a closed event-name enum). It uses a
+# restricted hand parser so it CANNOT deserialize content/message/text/prompt/
+# transcript/cwd/file_path/path/repo/code/completion fields (07 §2.2 deny-list).
+[dependencies]

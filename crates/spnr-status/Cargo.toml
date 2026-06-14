@@ -1,0 +1,19 @@
+[package]
+name = "spnr-status"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0"
+description = "HOT-PATH statusline renderer: print cached statusline from tmpfs, ping daemon (<=1/s) as a render-liveness heartbeat. Dependency-lean, < 1 MB stripped, exit <= 10 ms, NEVER panics, ALWAYS exits 0 (invariant 1)."
+
+[[bin]]
+name = "spnr-status"
+path = "src/main.rs"
+
+# HOT PATH: only spnr-proto (for the socket datagram schema) + std. NO tokio,
+# NO serde_json, NO heavy deps (09 §5). In-flight statusLine scripts are cancelled
+# by the host, so this MUST be fast — read a tmpfs cache, fire one datagram, exit.
+[dependencies]
+spnr-proto = { workspace = true }
+
+[dev-dependencies]
+tempfile.workspace = true

@@ -1,0 +1,70 @@
+# ─── Rust ───────────────────────────────────────────────────────────────────
+# Build output (~2.6 GB). Never commit.
+/target/
+**/target/
+*.rs.bk
+*.pdb
+
+# ─── Node / JavaScript ──────────────────────────────────────────────────────
+# web (Vite/React), server-ts (Express portal), e2e/playwright
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ─── Build / dist outputs ───────────────────────────────────────────────────
+dist/
+**/dist/
+build/
+.vite/
+.cache/
+
+# ─── Databases (SQLite backend, illuminate graph db, runtime queues) ─────────
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+.illuminate/
+
+# ─── Local tool caches (embedding models, agent runtime) — machine-generated ──
+.fastembed_cache/
+**/.fastembed_cache/
+.claude/
+
+# ─── Logs ───────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Secrets / environment ──────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Generated screenshots / E2E artifacts ──────────────────────────────────
+# Keep the e2e shell + .cjs scripts; drop captured images and reports.
+e2e/*.png
+*-live.png
+web/shots/
+playwright-report/
+test-results/
+
+# ─── spnr install snapshots (settings backup written during install) ────────
+settings.json.pre-spnr
+*.pre-spnr
+
+# ─── Temp / scratch ─────────────────────────────────────────────────────────
+tmp/
+*.tmp
+*.swp
+*~
+
+# ─── OS / editor cruft ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml

@@ -1,0 +1,13 @@
+[package]
+name = "spnr-settings"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0"
+description = "settings.json snapshot/inject/restore via the preserve_order serializer + the settings state machine (the OTHER serializer side; never shares a code path with spnr-proto's canonical JSON)."
+
+[dependencies]
+# serializer #1 (09 §4): preserve_order keeps the user's key order byte-stable.
+# This crate must NEVER import serde_jcs / the canonical signing path.
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }

@@ -1,0 +1,18 @@
+[package]
+name = "spnr-proto"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0"
+description = "SAP/1 wire types, canonical JSON (RFC 8785) signing, BLAKE3 hash chain, and the daemon socket datagram schema."
+
+[dependencies]
+serde = { workspace = true }
+serde_jcs = { workspace = true }
+ed25519-dalek = { workspace = true }
+blake3 = { workspace = true }
+ulid = { workspace = true }
+data-encoding = { workspace = true }
+rand_core = { version = "0.6", features = ["getrandom"] }
+
+[dev-dependencies]
+serde_json.workspace = true
