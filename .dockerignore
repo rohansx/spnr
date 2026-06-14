@@ -1,0 +1,24 @@
+# Keep the Docker build context small + reproducible. The build only needs the
+# Cargo workspace (Cargo.toml/lock, crates/, server/); everything else is noise.
+target/
+**/target/
+node_modules/
+**/node_modules/
+**/dist/
+web/
+server-ts/
+e2e/
+docs/
+install/
+.git/
+.github/
+.illuminate/
+**/.illuminate/
+.fastembed_cache/
+**/.fastembed_cache/
+*.db
+*.sqlite*
+*.log
+*-live.png
+.env
+.env.*

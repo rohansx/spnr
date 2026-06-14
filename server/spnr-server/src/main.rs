@@ -983,6 +983,11 @@ fn decode_pubkey(hex: &str) -> Option<VerifyingKey> {
 }
 
 fn app(state: Shared) -> Router {
+    // Permissive CORS so a browser frontend on another origin (e.g. the Vercel SPA)
+    // can call the API directly. Auth uses Bearer tokens in localStorage (not cookies),
+    // so a wildcard origin is safe — no credentialed requests. Override the policy in
+    // a hardened deployment if you want to pin specific origins.
+    let cors = tower_http::cors::CorsLayer::permissive();
     Router::new()
         .route("/", get(dashboard))
         .route("/health", get(health))
@@ -997,6 +1002,7 @@ fn app(state: Shared) -> Router {
         .route("/v1/logout", post(logout))
         .route("/api/stats", get(stats))
         .route("/c/{code}", get(click))
+        .layer(cors)
         .with_state(state)
 }
 
@@ -1012,10 +1018,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let home = std::env::var("HOME").unwrap_or_else(|_| ".".into());
         format!("{home}/.spnr-server.db")
     });
+    // Bind host: 127.0.0.1 by default (safe for local dev), overridable via
+    // SPNR_SERVER_HOST — set to 0.0.0.0 in a container so Traefik/Docker can reach it.
+    let host = std::env::var("SPNR_SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".into());
     let state = Arc::new(Mutex::new(AppState::open(&db_path)?));
     eprintln!("spnr-server durable store: {db_path}");
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
-    eprintln!("spnr-server listening on http://127.0.0.1:{port}");
+    let listener = tokio::net::TcpListener::bind((host.as_str(), port)).await?;
+    eprintln!("spnr-server listening on http://{host}:{port}");
     axum::serve(listener, app(state)).await?;
     Ok(())
 }
