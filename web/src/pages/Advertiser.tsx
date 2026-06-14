@@ -209,7 +209,9 @@ export default function Advertiser() {
       name: c.name,
       impressions: '—',
       clicks: '—',
-      ctr: c.creative ? 'linted' : 'no creative',
+      // No impression data accrues for a live campaign until it serves; the creative
+      // state (linted vs none) is already conveyed by STATUS below, so CTR is just —.
+      ctr: '—',
       spend: `$${c.price_per_block_usd.toFixed(2)}/blk`,
       status: winning ? 'SERVING' : c.creative ? 'READY' : 'DRAFT',
       serving: winning,
@@ -267,10 +269,10 @@ export default function Advertiser() {
 
       {/* ===== tabs (ruled segmented control) ===== */}
       <nav style={{ display: 'flex', flexWrap: 'wrap', borderBottom: RULE, borderTop: 'none' }}>
-        <button onClick={() => setTab('bids')} style={tabStyle(tab === 'bids')}>Bid board</button>
-        <button onClick={() => setTab('campaigns')} style={tabStyle(tab === 'campaigns')}>Campaigns</button>
-        <button onClick={() => setTab('creatives')} style={tabStyle(tab === 'creatives')}>Creatives</button>
-        <button onClick={() => setTab('funding')} style={{ ...tabStyle(tab === 'funding'), borderRight: 'none' }}>Funding</button>
+        <button data-testid="tab-bids" onClick={() => setTab('bids')} style={tabStyle(tab === 'bids')}>Bid board</button>
+        <button data-testid="tab-campaigns" onClick={() => setTab('campaigns')} style={tabStyle(tab === 'campaigns')}>Campaigns</button>
+        <button data-testid="tab-creatives" onClick={() => setTab('creatives')} style={tabStyle(tab === 'creatives')}>Creatives</button>
+        <button data-testid="tab-funding" onClick={() => setTab('funding')} style={{ ...tabStyle(tab === 'funding'), borderRight: 'none' }}>Funding</button>
       </nav>
 
       {/* ===== BID BOARD ===== */}

@@ -35,7 +35,11 @@ const check = (n, c, d) => {
     p.on('pageerror', (e) => errs.push(String(e)));
 
     await p.goto(advUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
-    await p.getByText('CAMPAIGNS', { exact: true }).first().click();
+    // Open the Campaigns tab by its stable testid (the label is CSS-uppercased, so
+    // its DOM text is "Campaigns" — match the tab control, not the visual casing).
+    const tab = p.locator('[data-testid="tab-campaigns"]');
+    if (await tab.count()) await tab.first().click();
+    else await p.getByRole('button', { name: /campaigns/i }).first().click();
     await p.waitForSelector('[data-testid="campaign-row"]', { timeout: 9000 }).catch(() => {});
 
     const rows = await p.locator('[data-testid="campaign-row"]').count();
