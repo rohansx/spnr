@@ -1,0 +1,7 @@
+# Tiny static host for the curl installer: serves install/get.sh at https://get.spnr.sh
+# (built with context = install/, so the root .dockerignore doesn't apply).
+#   curl -fsSL https://get.spnr.sh | bash
+FROM nginx:alpine
+# nginx serves index.html at "/", so `curl https://get.spnr.sh` returns the script.
+COPY get.sh /usr/share/nginx/html/index.html
+COPY get.sh /usr/share/nginx/html/get.sh
