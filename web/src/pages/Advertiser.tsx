@@ -1,7 +1,8 @@
 import { CSSProperties, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Crt } from '../components/Crt';
-import { C, FONT_DISPLAY, FONT_MONO } from '../theme';
+import { Shell } from '../components/Shell';
+import { SectionHeader } from '../components/SectionHeader';
+import { FONT_DISPLAY, FONT_MONO, RULE, T, shadow } from '../theme';
 import {
   useCampaigns,
   useAuction,
@@ -10,8 +11,8 @@ import {
   type Campaign as LiveCampaign,
 } from '../lib/usePortal';
 
-// spnr.co advertiser self-serve portal — ported faithfully from the design export
-// and wired LIVE to the v2 TypeScript portal API (server-ts/, proxied via /v2):
+// spnr.co advertiser self-serve portal — v5 "industrial editorial" restyle, wired
+// LIVE to the v2 TypeScript portal API (server-ts/, proxied via /v2):
 //   POST /v2/campaigns                — create a campaign
 //   GET  /v2/campaigns                — list campaigns (polled every 3s)
 //   POST /v2/campaigns/:id/creative   — submit a creative (server runs the same content-lint)
@@ -27,25 +28,47 @@ const GLYPHS = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '
 // plus a small set of allowed unicode (↗ · — … é). No ANSI escapes.
 const ALLOWED_CHARSET = /^[ -~↗—·…é]*$/;
 
-const label: CSSProperties = { fontSize: 11, letterSpacing: '0.1em', color: C.dim, marginBottom: 10 };
-const sub: CSSProperties = { fontSize: 11.5, color: C.dimmer, marginTop: 10 };
-const numCard: CSSProperties = { fontFamily: FONT_DISPLAY, fontSize: 38, fontWeight: 700, lineHeight: 1 };
-
 // ---- campaign table layout + design fallback rows (shown only while the live
 // GET /v2/campaigns list is loading or empty, so the table never looks broken) ----
-const CAMPAIGN_COLS = '1fr 130px 110px 110px 130px 120px';
+const CAMPAIGN_COLS = '1fr 130px 110px 120px 130px 130px';
 const CAMPAIGNS = [
-  { name: 'cloakpipe-launch-06', impressions: '238,114', clicks: '1,002', ctr: '0.42%', spend: '$3,194', status: 'SERVING', statusColor: C.green, nameColor: C.green, highlight: true },
-  { name: 'cloakpipe-ci-secrets-04', impressions: '141,650', clicks: '512', ctr: '0.36%', spend: '$1,818', status: 'OUTBID', statusColor: C.amber, nameColor: C.mid, highlight: false },
-  { name: 'cloakpipe-hn-launch-03', impressions: '32,545', clicks: '135', ctr: '0.41%', spend: '$430', status: 'COMPLETED', statusColor: C.dimmer, nameColor: C.mid, highlight: false },
+  { name: 'cloakpipe-launch-06', impressions: '238,114', clicks: '1,002', ctr: '0.42%', spend: '$3,194', status: 'SERVING', serving: true },
+  { name: 'cloakpipe-ci-secrets-04', impressions: '141,650', clicks: '512', ctr: '0.36%', spend: '$1,818', status: 'OUTBID', serving: false },
+  { name: 'cloakpipe-hn-launch-03', impressions: '32,545', clicks: '135', ctr: '0.41%', spend: '$430', status: 'COMPLETED', serving: false },
 ];
 
 // ---- funding settlement ledger (design data from the export) ----
 const SETTLEMENTS = [
-  { time: '14:00 UTC', detail: 'hourly batch · base · tx 0x8f2a…44c1', impressions: '3,204', amount: '−$35.24', amountColor: C.red },
-  { time: '13:00 UTC', detail: 'hourly batch · base · tx 0x3d97…b02e', impressions: '2,988', amount: '−$32.87', amountColor: C.red },
-  { time: '12:00 UTC', detail: 'escrow top-up · USDC via x402', impressions: '—', impressionsColor: C.dimmer, amount: '+$500.00', amountColor: C.green },
+  { time: '14:00 UTC', detail: 'hourly batch · base · tx 0x8f2a…44c1', impressions: '3,204', amount: '−$35.24', credit: false },
+  { time: '13:00 UTC', detail: 'hourly batch · base · tx 0x3d97…b02e', impressions: '2,988', amount: '−$32.87', credit: false },
+  { time: '12:00 UTC', detail: 'escrow top-up · USDC via x402', impressions: '—', amount: '+$500.00', credit: true },
 ];
+
+// ---- shared visual primitives (v5 brutalist tokens) ----
+const cellLabel: CSSProperties = {
+  fontFamily: FONT_MONO,
+  fontSize: 11,
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+  color: T.text3,
+};
+const bigNum: CSSProperties = {
+  fontFamily: FONT_MONO,
+  fontWeight: 700,
+  fontSize: 38,
+  letterSpacing: '-0.04em',
+  lineHeight: 1,
+  color: T.text,
+};
+const colHead: CSSProperties = {
+  fontFamily: FONT_MONO,
+  fontSize: 10.5,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: T.text3,
+};
+const mono13: CSSProperties = { fontFamily: FONT_MONO, fontSize: 12.5 };
+const sectionPad: CSSProperties = { padding: '36px 32px' };
 
 export default function Advertiser() {
   const [tab, setTab] = useState<Tab>('bids');
@@ -158,19 +181,22 @@ export default function Advertiser() {
     }
   };
 
+  // Tabs render as a ruled segmented control: the active tab fills ember/white.
   const tabStyle = (active: boolean): CSSProperties => ({
     fontFamily: FONT_MONO,
-    fontSize: 12.5,
-    letterSpacing: '0.08em',
-    padding: '10px 20px',
+    fontSize: 11.5,
+    fontWeight: active ? 700 : 500,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    padding: '13px 22px',
     cursor: 'pointer',
-    background: active ? C.panelActive : 'transparent',
-    color: active ? C.green : C.dim,
-    border: `1px solid ${active ? C.green : C.border}`,
-    borderBottom: active ? `1px solid ${C.panelActive}` : `1px solid ${C.border}`,
+    background: active ? T.ember : 'transparent',
+    color: active ? '#fff' : T.text2,
+    border: 'none',
+    borderRight: RULE,
   });
 
-  const lintStyle = (ok: boolean): CSSProperties => ({ color: ok ? C.green : C.red });
+  const lintColor = (ok: boolean) => (ok ? T.green : '#C0392B');
 
   // Map a live campaign to the design table's row shape. The v2 demand API only
   // owns id/name/price/creative — impressions/clicks/spend are economic truth that
@@ -186,190 +212,159 @@ export default function Advertiser() {
       ctr: c.creative ? 'linted' : 'no creative',
       spend: `$${c.price_per_block_usd.toFixed(2)}/blk`,
       status: winning ? 'SERVING' : c.creative ? 'READY' : 'DRAFT',
-      statusColor: winning ? C.green : c.creative ? C.mid : C.dimmer,
-      nameColor: winning ? C.green : C.mid,
-      highlight: winning,
+      serving: winning,
     };
   });
   const usingLive = liveRows.length > 0;
 
-  const submitStyle: CSSProperties = {
-    fontFamily: FONT_MONO,
-    fontSize: 13,
-    fontWeight: 600,
-    letterSpacing: '0.08em',
-    padding: '14px 24px',
-    background: allOk ? C.green : 'transparent',
-    color: allOk ? C.bg : C.dimmer,
-    border: `1px solid ${allOk ? C.green : C.border}`,
-    cursor: allOk ? 'pointer' : 'not-allowed',
-  };
+  // The CTA at the foot of the bid card + the creative submit button share the
+  // ember/disabled treatment depending on lint state.
+  const submitDisabled = !allOk;
 
   return (
-    <Crt>
-      {/* ===== top bar ===== */}
-      <header
+    <Shell
+      nav={
+        <>
+          <Link to="/" className="spnr-link">
+            ← Landing
+          </Link>
+          <Link to="/dashboard" className="spnr-link">
+            Console
+          </Link>
+        </>
+      }
+    >
+      {/* ===== advertiser band header (ember) ===== */}
+      <SectionHeader n="00" title="Advertiser · spnr.co" ember />
+
+      {/* ===== status strip ===== */}
+      <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: 24,
-          padding: '22px 0',
-          borderBottom: `1px solid ${C.border}`,
+          gap: 18,
           flexWrap: 'wrap',
+          padding: '14px 32px',
+          borderBottom: RULE,
+          fontFamily: FONT_MONO,
+          fontSize: 11,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 18 }}>
-          <Link
-            to="/"
-            style={{
-              fontFamily: FONT_DISPLAY,
-              fontWeight: 700,
-              fontSize: 18,
-              letterSpacing: '0.06em',
-              color: C.green,
-              textShadow: '0 0 16px rgba(61,255,126,0.4)',
-            }}
-          >
-            SPNR<span style={{ animation: 'spnr-blink 1.1s step-end infinite' }}>_</span>
-          </Link>
-          <div style={{ fontSize: 12, color: C.dimmer, letterSpacing: '0.06em' }}>ADVERTISER · spnr.co</div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24, fontSize: 12, letterSpacing: '0.04em' }}>
-          <span style={{ color: C.dim }}>escrow <span style={{ color: C.amber }}>${escrow.toFixed(2)}</span></span>
-          <span style={{ color: C.green }}>● SLOT:SPINNER · MARKET OPEN</span>
-          <Link to="/dashboard" className="spnr-link" style={{ color: C.dim }}>ads<span>@</span>cloakpipe.dev</Link>
-        </div>
-      </header>
+        <span style={{ color: T.text2, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 7, height: 7, background: T.green, display: 'inline-block' }} />
+          Slot:Spinner · Market open
+        </span>
+        <span style={{ color: T.text2 }}>
+          Escrow <span style={{ color: T.emberText, fontWeight: 700 }}>${escrow.toFixed(2)}</span>
+        </span>
+        <Link to="/dashboard" className="spnr-link">
+          ads@cloakpipe.dev
+        </Link>
+      </div>
 
-      {/* ===== tabs ===== */}
-      <nav style={{ display: 'flex', gap: 4, padding: '18px 0 0', fontSize: 12.5, letterSpacing: '0.08em' }}>
-        <button onClick={() => setTab('bids')} style={tabStyle(tab === 'bids')}>BID BOARD</button>
-        <button onClick={() => setTab('campaigns')} style={tabStyle(tab === 'campaigns')}>CAMPAIGNS</button>
-        <button onClick={() => setTab('creatives')} style={tabStyle(tab === 'creatives')}>CREATIVES</button>
-        <button onClick={() => setTab('funding')} style={tabStyle(tab === 'funding')}>FUNDING</button>
+      {/* ===== tabs (ruled segmented control) ===== */}
+      <nav style={{ display: 'flex', flexWrap: 'wrap', borderBottom: RULE, borderTop: 'none' }}>
+        <button onClick={() => setTab('bids')} style={tabStyle(tab === 'bids')}>Bid board</button>
+        <button onClick={() => setTab('campaigns')} style={tabStyle(tab === 'campaigns')}>Campaigns</button>
+        <button onClick={() => setTab('creatives')} style={tabStyle(tab === 'creatives')}>Creatives</button>
+        <button onClick={() => setTab('funding')} style={{ ...tabStyle(tab === 'funding'), borderRight: 'none' }}>Funding</button>
       </nav>
 
       {/* ===== BID BOARD ===== */}
       {tab === 'bids' && (
-        <section style={{ paddingTop: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.1em', color: C.dim }}>
-              OPEN ASCENDING AUCTION — HIGHEST BID SERVES FIRST · BLOCKS OF 1,000 × 5s · CLICKS AT 50× · MIN $1.00
+        <section style={sectionPad}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 16, flexWrap: 'wrap', marginBottom: 24 }}>
+            <div style={{ ...cellLabel, maxWidth: '62ch', lineHeight: 1.6 }}>
+              Open ascending auction — highest bid serves first · blocks of 1,000 × 5s · clicks at 50× · min $1.00
             </div>
-            <div style={{ fontSize: 11.5, color: C.dimmer }}>
+            <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: T.text3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               {auctionWinner ? (
-                <>live winner <span style={{ color: C.green }}>{auctionWinner.name}</span> @ ${auctionWinner.price_per_block_usd.toFixed(2)}/blk</>
+                <>live winner <span style={{ color: T.emberText, fontWeight: 700 }}>{auctionWinner.name}</span> @ ${auctionWinner.price_per_block_usd.toFixed(2)}/blk</>
               ) : (
-                <>auction logic is <span style={{ color: C.green }}>open source</span> — verify it</>
+                <>auction logic is <span style={{ color: T.emberText, fontWeight: 700 }}>open source</span> — verify it</>
               )}
             </div>
           </div>
 
-          <div style={{ border: `1px solid ${C.border}`, background: C.panel }}>
+          {/* bid board table */}
+          <div style={{ border: RULE, background: T.surface, boxShadow: shadow() }}>
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '70px 1fr 170px 150px 150px',
-                padding: '12px 18px',
-                borderBottom: `1px solid ${C.border}`,
-                fontSize: 10.5,
-                letterSpacing: '0.1em',
-                color: C.dimmer,
+                gridTemplateColumns: '70px 1fr 170px 160px 150px',
+                padding: '13px 18px',
+                borderBottom: RULE,
+                ...colHead,
               }}
             >
-              <span>RANK</span>
-              <span>ADVERTISER</span>
-              <span style={{ textAlign: 'right' }}>BID / BLOCK</span>
-              <span style={{ textAlign: 'right' }}>PER IMPRESSION</span>
-              <span style={{ textAlign: 'right' }}>STATUS</span>
+              <span>Rank</span>
+              <span>Advertiser</span>
+              <span style={{ textAlign: 'right' }}>Bid / block</span>
+              <span style={{ textAlign: 'right' }}>Per impression</span>
+              <span style={{ textAlign: 'right' }}>Status</span>
             </div>
-            {bidRows.map((b, i) => (
+            {bidRows.map((b, i, arr) => (
               <div
                 key={b.name}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '70px 1fr 170px 150px 150px',
-                  padding: '13px 18px',
-                  borderBottom: `1px solid ${C.borderFaint}`,
-                  fontSize: 12.5,
-                  background: b.mine ? C.panelActive : 'transparent',
+                  gridTemplateColumns: '70px 1fr 170px 160px 150px',
+                  padding: '14px 18px',
+                  borderBottom: i === arr.length - 1 ? 'none' : RULE,
+                  background: b.mine ? T.surface2 : 'transparent',
+                  ...mono13,
                 }}
               >
-                <span style={{ color: C.dimmer }}>#{i + 1}</span>
-                <span style={{ color: b.mine ? C.green : C.mid, fontWeight: b.mine ? 600 : 400 }}>{b.name}</span>
-                <span style={{ color: C.bright, textAlign: 'right' }}>${b.bid.toFixed(2)}</span>
-                <span style={{ color: C.dim, textAlign: 'right' }}>${(b.bid / 1000).toFixed(4)}</span>
+                <span style={{ color: T.text3 }}>#{i + 1}</span>
+                <span style={{ color: b.mine ? T.emberText : T.text, fontWeight: b.mine ? 700 : 500 }}>{b.name}</span>
+                <span style={{ color: T.text, textAlign: 'right', fontWeight: 600 }}>${b.bid.toFixed(2)}</span>
+                <span style={{ color: T.text2, textAlign: 'right' }}>${(b.bid / 1000).toFixed(4)}</span>
                 <span
                   style={{
-                    color: i === 0 ? C.green : C.dimmer,
+                    color: i === 0 ? T.green : T.text3,
                     textAlign: 'right',
                     letterSpacing: '0.06em',
-                    fontSize: 11.5,
+                    fontSize: 11,
+                    textTransform: 'uppercase',
+                    fontWeight: i === 0 ? 700 : 500,
                   }}
                 >
-                  {i === 0 ? 'SERVING' : 'QUEUED'}
+                  {i === 0 ? 'Serving' : 'Queued'}
                 </span>
               </div>
             ))}
           </div>
 
+          {/* your-bid control cell */}
           <div
             style={{
-              border: `1px solid ${C.border}`,
-              background: C.panel,
-              padding: '22px 24px',
+              marginTop: 24,
+              border: RULE,
+              background: T.surface,
+              boxShadow: shadow(),
+              padding: '26px 28px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: 20,
+              gap: 24,
               flexWrap: 'wrap',
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span style={{ fontSize: 11, letterSpacing: '0.1em', color: C.dim }}>YOUR BID — cloakpipe-launch-06</span>
-              <span style={{ fontFamily: FONT_DISPLAY, fontSize: 30, fontWeight: 700, color: C.bright }}>
-                ${myBid.toFixed(2)}{' '}
-                <span style={{ fontSize: 13, color: C.dim, fontFamily: FONT_MONO }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span style={cellLabel}>Your bid — cloakpipe-launch-06</span>
+              <span style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ ...bigNum, fontSize: 44 }}>${myBid.toFixed(2)}</span>
+                <span style={{ fontFamily: FONT_MONO, fontSize: 12, color: T.text2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                   / block · {serving ? 'serving now' : 'outbid — wirecat.dev holds the slot'}
                 </span>
               </span>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                className="spnr-ghost"
-                onClick={raiseBidSmall}
-                style={{
-                  fontFamily: FONT_MONO,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  letterSpacing: '0.06em',
-                  padding: '13px 22px',
-                  background: 'transparent',
-                  color: C.green,
-                  border: `1px solid ${C.green}`,
-                  cursor: 'pointer',
-                }}
-              >
-                + $0.50
-              </button>
-              <button
-                className="spnr-primary"
-                onClick={raiseBidTop}
-                style={{
-                  fontFamily: FONT_MONO,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  letterSpacing: '0.06em',
-                  padding: '13px 22px',
-                  background: C.green,
-                  color: C.bg,
-                  border: `1px solid ${C.green}`,
-                  cursor: 'pointer',
-                }}
-              >
-                TAKE TOP →
-              </button>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <button className="spnr-ghost" onClick={raiseBidSmall}>+ $0.50</button>
+              <button className="spnr-btn" onClick={raiseBidTop}>Take top ▸</button>
             </div>
           </div>
         </section>
@@ -377,92 +372,97 @@ export default function Advertiser() {
 
       {/* ===== CAMPAIGNS ===== */}
       {tab === 'campaigns' && (
-        <section style={{ paddingTop: 24, display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <section style={sectionPad}>
+          {/* metric cards */}
           <div
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 210px), 1fr))',
-              gap: 1,
-              background: C.border,
-              border: `1px solid ${C.border}`,
+              border: RULE,
+              boxShadow: shadow(),
+              background: T.surface,
+              marginBottom: 24,
             }}
           >
-            <div style={{ background: C.panel, padding: '24px 24px 20px' }}>
-              <div style={label}>IMPRESSIONS — 30D</div>
-              <div style={{ ...numCard, color: C.bright }}>412,309</div>
-              <div style={sub}>attested, anomaly-filtered</div>
-            </div>
-            <div style={{ background: C.panel, padding: '24px 24px 20px' }}>
-              <div style={label}>CLICKS</div>
-              <div style={{ ...numCard, color: C.amber }}>1,649</div>
-              <div style={sub}>0.40% CTR · billed at 50×</div>
-            </div>
-            <div style={{ background: C.panel, padding: '24px 24px 20px' }}>
-              <div style={label}>ATTESTATION COVERAGE</div>
-              <div style={{ ...numCard, color: C.green }}>98.7%</div>
-              <div style={sub}>signed events / total served</div>
-            </div>
-            <div style={{ background: C.panel, padding: '24px 24px 20px' }}>
-              <div style={label}>SPEND — 30D</div>
-              <div style={{ ...numCard, color: C.bright }}>$5,442</div>
-              <div style={sub}>settled hourly, on-chain batches</div>
-            </div>
+            <MetricCell label="Impressions — 30d" value="412,309" sub="attested, anomaly-filtered" rule />
+            <MetricCell label="Clicks" value="1,649" sub="0.40% CTR · billed at 50×" valueColor={T.emberText} rule />
+            <MetricCell label="Attestation coverage" value="98.7%" sub="signed events / total served" valueColor={T.green} rule />
+            <MetricCell label="Spend — 30d" value="$5,442" sub="settled hourly, on-chain batches" />
           </div>
 
-          <div style={{ border: `1px solid ${C.border}`, background: C.panel }}>
+          {/* campaign table */}
+          <div style={{ border: RULE, background: T.surface, boxShadow: shadow() }}>
             <div
               style={{
                 display: 'grid',
                 gridTemplateColumns: CAMPAIGN_COLS,
-                padding: '12px 18px',
-                borderBottom: `1px solid ${C.border}`,
-                fontSize: 10.5,
-                letterSpacing: '0.1em',
-                color: C.dimmer,
+                padding: '13px 18px',
+                borderBottom: RULE,
+                ...colHead,
               }}
             >
-              <span>CAMPAIGN</span>
-              <span style={{ textAlign: 'right' }}>IMPRESSIONS</span>
-              <span style={{ textAlign: 'right' }}>CLICKS</span>
+              <span>Campaign</span>
+              <span style={{ textAlign: 'right' }}>Impressions</span>
+              <span style={{ textAlign: 'right' }}>Clicks</span>
               <span style={{ textAlign: 'right' }}>CTR</span>
-              <span style={{ textAlign: 'right' }}>SPEND</span>
-              <span style={{ textAlign: 'right' }}>STATUS</span>
+              <span style={{ textAlign: 'right' }}>Spend</span>
+              <span style={{ textAlign: 'right' }}>Status</span>
             </div>
-            {(usingLive ? liveRows : CAMPAIGNS).map((c, i, arr) => (
-              <div
-                key={'id' in c ? c.id : c.name}
-                data-testid={usingLive ? 'campaign-row' : undefined}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: CAMPAIGN_COLS,
-                  padding: '13px 18px',
-                  borderBottom: i === arr.length - 1 ? undefined : `1px solid ${C.borderFaint}`,
-                  fontSize: 12.5,
-                  background: c.highlight ? C.panelActive : undefined,
-                }}
-              >
-                <span style={{ color: c.nameColor }}>{c.name}</span>
-                <span style={{ color: C.bright, textAlign: 'right' }}>{c.impressions}</span>
-                <span style={{ color: C.mid, textAlign: 'right' }}>{c.clicks}</span>
-                <span style={{ color: C.mid, textAlign: 'right' }}>{c.ctr}</span>
-                <span style={{ color: C.bright, textAlign: 'right' }}>{c.spend}</span>
-                <span style={{ color: c.statusColor, textAlign: 'right' }}>{c.status}</span>
-              </div>
-            ))}
+            {(usingLive ? liveRows : CAMPAIGNS).map((c, i, arr) => {
+              // c is a union of the live-row and design-row shapes; both carry a
+              // string name and the live shape also carries a string id. The union
+              // discriminant widens to unknown under tsc, so cast the known-string key.
+              const rowKey = ('id' in c ? c.id : c.name) as string;
+              return (
+                <div
+                  key={rowKey}
+                  data-testid={usingLive ? 'campaign-row' : undefined}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: CAMPAIGN_COLS,
+                    padding: '14px 18px',
+                    borderBottom: i === arr.length - 1 ? 'none' : RULE,
+                    background: c.serving ? T.surface2 : 'transparent',
+                    ...mono13,
+                  }}
+                >
+                  <span style={{ color: c.serving ? T.emberText : T.text, fontWeight: c.serving ? 700 : 500 }}>{c.name}</span>
+                  <span style={{ color: T.text, textAlign: 'right' }}>{c.impressions}</span>
+                  <span style={{ color: T.text2, textAlign: 'right' }}>{c.clicks}</span>
+                  <span style={{ color: T.text2, textAlign: 'right' }}>{c.ctr}</span>
+                  <span style={{ color: T.text, textAlign: 'right', fontWeight: 600 }}>{c.spend}</span>
+                  <span style={{ color: c.serving ? T.green : T.text3, textAlign: 'right', fontWeight: c.serving ? 700 : 500, textTransform: 'uppercase' }}>{c.status}</span>
+                </div>
+              );
+            })}
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', fontSize: 11.5, color: C.dimmer }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 16,
+              flexWrap: 'wrap',
+              marginTop: 16,
+              fontFamily: FONT_MONO,
+              fontSize: 11,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: T.text3,
+            }}
+          >
             <span data-testid="campaign-count">
               {usingLive
                 ? `${liveRows.length} live campaign${liveRows.length === 1 ? '' : 's'} · GET /v2/campaigns`
                 : 'connecting to /v2/campaigns — showing sample campaigns'}
             </span>
-            <span style={{ color: usingLive ? C.green : C.dimmer }}>
-              {usingLive ? '● live' : '○ loading'}
+            <span style={{ color: usingLive ? T.green : T.text3, display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ width: 7, height: 7, background: usingLive ? T.green : T.text3, display: 'inline-block' }} />
+              {usingLive ? 'live' : 'loading'}
             </span>
           </div>
 
-          <div style={{ fontSize: 11.5, color: C.dimmer, maxWidth: '80ch' }}>
+          <div style={{ marginTop: 18, fontSize: 14, lineHeight: 1.5, color: T.text2, maxWidth: '80ch' }}>
             Honesty note, as published: terminal impressions are attested + anomaly-filtered, not
             IAB-viewability-grade. Coverage rates above are per-campaign and downloadable — the methodology is public.
           </div>
@@ -473,58 +473,43 @@ export default function Advertiser() {
       {tab === 'creatives' && (
         <section
           style={{
-            paddingTop: 24,
+            ...sectionPad,
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 420px), 1fr))',
             gap: 24,
             alignItems: 'start',
           }}
         >
-          <div style={{ border: `1px solid ${C.border}`, background: C.panel, padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.1em', color: C.dim }}>SUBMIT CREATIVE — LINTED LIVE AGAINST CONTENT RULES</div>
+          {/* submit form */}
+          <div style={{ border: RULE, background: T.surface, boxShadow: shadow(), padding: 26, display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={cellLabel}>Submit creative — linted live against content rules</div>
             <input
               value={creativeText}
               onChange={(e) => { setCreativeText(e.target.value); setSubmitted(false); setServerViolations(null); }}
               spellCheck={false}
-              style={{
-                fontFamily: FONT_MONO,
-                fontSize: 14,
-                padding: '14px 16px',
-                background: C.bg,
-                border: `1px solid ${C.border}`,
-                color: C.bright,
-                width: '100%',
-                boxSizing: 'border-box',
-              }}
+              className="spnr-input"
             />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12.5 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ color: C.mid }}>length ≤ 48 chars</span>
-                <span style={lintStyle(lenOk)}>{lenOk ? '✓ ' : '× '}{creativeText.length}/48</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ color: C.mid }}>allow-listed charset · no ANSI escapes</span>
-                <span style={lintStyle(charsOk)}>{charsOk ? '✓ clean' : '× disallowed chars'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ color: C.mid }}>plain text + one trailing ↗</span>
-                <span style={lintStyle(arrowOk)}>{arrowOk ? '✓ ok' : '× must end with one ↗'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ color: C.mid }}>destination domain verified</span>
-                <span style={{ color: C.green }}>✓ cloakpipe.dev</span>
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0, border: RULE, ...mono13 }}>
+              <LintRow ok={lenOk} label="length ≤ 48 chars">{lenOk ? '✓ ' : '× '}{creativeText.length}/48</LintRow>
+              <LintRow ok={charsOk} label="allow-listed charset · no ANSI escapes">{charsOk ? '✓ clean' : '× disallowed chars'}</LintRow>
+              <LintRow ok={arrowOk} label="plain text + one trailing ↗">{arrowOk ? '✓ ok' : '× must end with one ↗'}</LintRow>
+              <LintRow ok label="destination domain verified" last>✓ cloakpipe.dev</LintRow>
             </div>
-            <button onClick={submitCreative} style={submitStyle}>
-              {allOk ? 'SUBMIT FOR REVIEW →' : 'FIX LINT ERRORS FIRST'}
+            <button
+              onClick={submitCreative}
+              className={submitDisabled ? 'spnr-ghost' : 'spnr-btn'}
+              disabled={submitDisabled}
+              style={submitDisabled ? { cursor: 'not-allowed', color: T.text3, borderColor: T.line } : undefined}
+            >
+              {allOk ? 'Submit for review ▸' : 'Fix lint errors first'}
             </button>
             {submitted && (
-              <div style={{ border: `1px solid ${C.green}`, background: C.panelActive, padding: '12px 16px', fontSize: 12.5, color: C.green }}>
+              <div style={{ border: `2px solid ${T.ember}`, background: T.surface2, padding: '13px 16px', fontSize: 13, lineHeight: 1.5, color: T.emberText }}>
                 ✓ submitted{submitTarget ? ` to ${submitTarget}` : ''} — server lint passed, signed by the network key, eligible to serve when your bid wins.
               </div>
             )}
             {serverViolations && (
-              <div style={{ border: `1px solid ${C.red}`, background: C.panelActive, padding: '12px 16px', fontSize: 12.5, color: C.red }}>
+              <div style={{ border: '2px solid #C0392B', background: T.surface2, padding: '13px 16px', fontSize: 13, color: '#C0392B' }}>
                 <div style={{ marginBottom: 6 }}>× server rejected the creative — content lint violations:</div>
                 {serverViolations.map((v) => (
                   <div key={v} style={{ fontFamily: FONT_MONO }}>· {v}</div>
@@ -533,32 +518,38 @@ export default function Advertiser() {
             )}
           </div>
 
+          {/* preview + active creatives */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <div style={{ border: `1px solid ${C.border}`, background: C.panel, padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ fontSize: 11, letterSpacing: '0.1em', color: C.dim }}>LIVE PREVIEW — HOW IT RENDERS IN A SPINNER</div>
-              <div style={{ border: `1px solid ${C.border}`, background: C.bg, padding: 18, fontSize: 13.5, lineHeight: 1.9 }}>
-                <div style={{ color: C.dimmer }}>⏺ Read worker.rs · Edited 2 files</div>
+            <div style={{ border: RULE, background: T.surface, boxShadow: shadow(), padding: 26, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={cellLabel}>Live preview — how it renders in a spinner</div>
+              {/* inverted (ink) terminal inset — matches the v5 readout chrome */}
+              <div
+                style={{
+                  border: RULE,
+                  background: T.invSurface,
+                  color: T.invText2,
+                  padding: 18,
+                  fontFamily: FONT_MONO,
+                  fontSize: 12.5,
+                  lineHeight: 1.95,
+                }}
+              >
+                <div style={{ color: T.invText3 }}>⏺ Read worker.rs · Edited 2 files</div>
                 <div>
-                  <span style={{ color: C.amber }}>{GLYPHS[frame]}</span>{' '}
-                  <span style={{ color: C.amber }}>{previewText}</span>{' '}
-                  <span style={{ color: C.dimmer }}>(esc to interrupt)</span>
+                  <span style={{ color: T.ember }}>{GLYPHS[frame]}</span>{' '}
+                  <span style={{ color: T.emberText, fontWeight: 600 }}>{previewText}</span>{' '}
+                  <span style={{ color: T.invText3 }}>(esc to interrupt)</span>
                 </div>
               </div>
-              <div style={{ fontSize: 11.5, color: C.dimmer }}>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 11, color: T.text3, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 {creativeText.length}/48 · clients strip anything not on the allow-list before display
               </div>
             </div>
 
-            <div style={{ border: `1px solid ${C.border}`, background: C.panel, padding: 24, display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12.5 }}>
-              <div style={{ fontSize: 11, letterSpacing: '0.1em', color: C.dim, marginBottom: 6 }}>ACTIVE CREATIVES</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ color: C.bright }}>CloakPipe — secrets that never touch disk ↗</span>
-                <span style={{ color: C.green }}>SERVING</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ color: C.mid }}>CloakPipe — your CI has secrets. keep them ↗</span>
-                <span style={{ color: C.dimmer }}>QUEUED</span>
-              </div>
+            <div style={{ border: RULE, background: T.surface, boxShadow: shadow(), padding: 26, display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <div style={{ ...cellLabel, marginBottom: 14 }}>Active creatives</div>
+              <ActiveCreative text="CloakPipe — secrets that never touch disk ↗" status="Serving" serving />
+              <ActiveCreative text="CloakPipe — your CI has secrets. keep them ↗" status="Queued" last />
             </div>
           </div>
         </section>
@@ -566,135 +557,86 @@ export default function Advertiser() {
 
       {/* ===== FUNDING ===== */}
       {tab === 'funding' && (
-        <section style={{ paddingTop: 24, display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 760 }}>
+        <section style={{ ...sectionPad, display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 820 }}>
+          {/* escrow card */}
           <div
             style={{
-              border: `1px solid ${C.border}`,
-              background: C.panel,
-              padding: 24,
+              border: RULE,
+              background: T.surface,
+              boxShadow: shadow(),
+              padding: '26px 28px',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              gap: 20,
+              gap: 24,
               flexWrap: 'wrap',
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <span style={{ fontSize: 11, letterSpacing: '0.1em', color: C.dim }}>ESCROW BALANCE</span>
-              <span style={{ fontFamily: FONT_DISPLAY, fontSize: 38, fontWeight: 700, color: C.amber }}>${escrow.toFixed(2)}</span>
-              <span style={{ fontSize: 11.5, color: C.dimmer }}>released per verified impression · unspent escrow is refundable, always</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span style={cellLabel}>Escrow balance</span>
+              <span style={{ ...bigNum, fontSize: 48, color: T.emberText }}>${escrow.toFixed(2)}</span>
+              <span style={{ fontSize: 13, color: T.text2 }}>released per verified impression · unspent escrow is refundable, always</span>
             </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                className="spnr-primary"
-                onClick={fundUsdc}
-                style={{
-                  fontFamily: FONT_MONO,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  letterSpacing: '0.06em',
-                  padding: '13px 22px',
-                  background: C.green,
-                  color: C.bg,
-                  border: `1px solid ${C.green}`,
-                  cursor: 'pointer',
-                }}
-              >
-                FUND — USDC · x402
-              </button>
-              <button
-                className="spnr-ghost"
-                onClick={fundCard}
-                style={{
-                  fontFamily: FONT_MONO,
-                  fontSize: 13,
-                  fontWeight: 600,
-                  letterSpacing: '0.06em',
-                  padding: '13px 22px',
-                  background: 'transparent',
-                  color: C.green,
-                  border: `1px solid ${C.green}`,
-                  cursor: 'pointer',
-                }}
-              >
-                FUND — CARD
-              </button>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <button className="spnr-btn" onClick={fundUsdc}>Fund — USDC · x402</button>
+              <button className="spnr-ghost" onClick={fundCard}>Fund — card</button>
             </div>
           </div>
 
           {funded && (
-            <div style={{ border: `1px solid ${C.green}`, background: C.panelActive, padding: '14px 18px', fontSize: 12.5, color: C.green }}>
+            <div style={{ border: `2px solid ${T.ember}`, background: T.surface2, padding: '14px 18px', fontSize: 13, color: T.emberText }}>
               ✓ +$500.00 escrowed via {fundMethod} — available immediately.
             </div>
           )}
 
           {/* ---- create a campaign — LIVE POST /v2/campaigns ---- */}
-          <div style={{ border: `1px solid ${C.border}`, background: C.panel, padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div style={{ fontSize: 11, letterSpacing: '0.1em', color: C.dim }}>NEW CAMPAIGN — OPENS A SLOT IN THE LIVE AUCTION</div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: '1 1 240px' }}>
-                <span style={{ fontSize: 11, color: C.dimmer, letterSpacing: '0.06em' }}>CAMPAIGN NAME</span>
+          <div style={{ border: RULE, background: T.surface, boxShadow: shadow(), padding: 26, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={cellLabel}>New campaign — opens a slot in the live auction</div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: '1 1 240px' }}>
+                <span style={cellLabel}>Campaign name</span>
                 <input
                   value={newName}
                   onChange={(e) => { setNewName(e.target.value); setCreateMsg(null); }}
                   placeholder="cloakpipe-launch-07"
                   spellCheck={false}
-                  style={{
-                    fontFamily: FONT_MONO, fontSize: 14, padding: '12px 14px',
-                    background: C.bg, border: `1px solid ${C.border}`, color: C.bright,
-                    width: '100%', boxSizing: 'border-box',
-                  }}
+                  className="spnr-input"
                 />
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: '0 1 150px' }}>
-                <span style={{ fontSize: 11, color: C.dimmer, letterSpacing: '0.06em' }}>$ / BLOCK (≥ 1.00)</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, flex: '0 1 160px' }}>
+                <span style={cellLabel}>$ / block (≥ 1.00)</span>
                 <input
                   value={newPrice}
                   onChange={(e) => { setNewPrice(e.target.value); setCreateMsg(null); }}
                   inputMode="decimal"
                   spellCheck={false}
-                  style={{
-                    fontFamily: FONT_MONO, fontSize: 14, padding: '12px 14px',
-                    background: C.bg, border: `1px solid ${C.border}`, color: C.bright,
-                    width: '100%', boxSizing: 'border-box',
-                  }}
+                  className="spnr-input"
                 />
               </div>
-              <button
-                className="spnr-primary"
-                onClick={createCampaignFlow}
-                style={{
-                  fontFamily: FONT_MONO, fontSize: 13, fontWeight: 600, letterSpacing: '0.06em',
-                  padding: '13px 22px', background: C.green, color: C.bg,
-                  border: `1px solid ${C.green}`, cursor: 'pointer',
-                }}
-              >
-                CREATE →
-              </button>
+              <button className="spnr-btn" onClick={createCampaignFlow}>Create ▸</button>
             </div>
             {createMsg && (
-              <div style={{ fontSize: 12.5, color: createMsg.startsWith('✓') ? C.green : C.red, fontFamily: FONT_MONO }}>
+              <div style={{ fontFamily: FONT_MONO, fontSize: 12.5, color: createMsg.startsWith('✓') ? T.green : '#C0392B' }}>
                 {createMsg}
               </div>
             )}
           </div>
 
-          <div style={{ border: `1px solid ${C.border}`, background: C.panel }}>
+          {/* settlement ledger */}
+          <div style={{ border: RULE, background: T.surface, boxShadow: shadow() }}>
             <div
               style={{
                 display: 'grid',
                 gridTemplateColumns: '140px 1fr 140px 130px',
-                padding: '12px 18px',
-                borderBottom: `1px solid ${C.border}`,
-                fontSize: 10.5,
-                letterSpacing: '0.1em',
-                color: C.dimmer,
+                padding: '13px 18px',
+                borderBottom: RULE,
+                ...colHead,
               }}
             >
-              <span>TIME</span>
-              <span>SETTLEMENT</span>
-              <span style={{ textAlign: 'right' }}>IMPRESSIONS</span>
-              <span style={{ textAlign: 'right' }}>AMOUNT</span>
+              <span>Time</span>
+              <span>Settlement</span>
+              <span style={{ textAlign: 'right' }}>Impressions</span>
+              <span style={{ textAlign: 'right' }}>Amount</span>
             </div>
             {SETTLEMENTS.map((s, i) => (
               <div
@@ -702,25 +644,107 @@ export default function Advertiser() {
                 style={{
                   display: 'grid',
                   gridTemplateColumns: '140px 1fr 140px 130px',
-                  padding: '12px 18px',
-                  borderBottom: i === SETTLEMENTS.length - 1 ? undefined : `1px solid ${C.borderFaint}`,
-                  fontSize: 12.5,
+                  padding: '13px 18px',
+                  borderBottom: i === SETTLEMENTS.length - 1 ? 'none' : RULE,
+                  ...mono13,
                 }}
               >
-                <span style={{ color: C.dim }}>{s.time}</span>
-                <span style={{ color: C.mid }}>{s.detail}</span>
-                <span style={{ color: s.impressionsColor ?? C.bright, textAlign: 'right' }}>{s.impressions}</span>
-                <span style={{ color: s.amountColor, textAlign: 'right' }}>{s.amount}</span>
+                <span style={{ color: T.text2 }}>{s.time}</span>
+                <span style={{ color: T.text2 }}>{s.detail}</span>
+                <span style={{ color: s.impressions === '—' ? T.text3 : T.text, textAlign: 'right' }}>{s.impressions}</span>
+                <span style={{ color: s.credit ? T.green : T.text, textAlign: 'right', fontWeight: 600 }}>{s.amount}</span>
               </div>
             ))}
           </div>
 
-          <div style={{ fontSize: 11.5, color: C.dimmer, maxWidth: '80ch' }}>
+          <div style={{ fontSize: 14, lineHeight: 1.5, color: T.text2, maxWidth: '80ch' }}>
             All settlement is denominated in USD and executed as USDC micro-settlements over x402 on Base — off-chain
             ledger real-time, on-chain batches hourly. Phase 2: autonomous agents bid through the same rail.
           </div>
         </section>
       )}
-    </Crt>
+    </Shell>
+  );
+}
+
+// ---- small ruled sub-components (keep the JSX above readable) ----
+
+function MetricCell({
+  label,
+  value,
+  sub,
+  valueColor,
+  rule,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+  valueColor?: string;
+  rule?: boolean;
+}) {
+  return (
+    <div style={{ padding: '24px 24px 22px', borderRight: rule ? RULE : 'none' }}>
+      <div style={{ ...cellLabel, marginBottom: 12 }}>{label}</div>
+      <div style={{ ...bigNum, color: valueColor ?? T.text }}>{value}</div>
+      <div style={{ marginTop: 12, fontSize: 12.5, color: T.text2 }}>{sub}</div>
+    </div>
+  );
+}
+
+function LintRow({
+  ok,
+  label,
+  children,
+  last,
+}: {
+  ok: boolean;
+  label: string;
+  children: React.ReactNode;
+  last?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '11px 14px',
+        borderBottom: last ? 'none' : RULE,
+        fontFamily: FONT_MONO,
+        fontSize: 12.5,
+      }}
+    >
+      <span style={{ color: T.text2 }}>{label}</span>
+      <span style={{ color: ok ? T.green : '#C0392B', fontWeight: 600 }}>{children}</span>
+    </div>
+  );
+}
+
+function ActiveCreative({
+  text,
+  status,
+  serving,
+  last,
+}: {
+  text: string;
+  status: string;
+  serving?: boolean;
+  last?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 12,
+        padding: '12px 0',
+        borderBottom: last ? 'none' : RULE,
+        fontFamily: FONT_MONO,
+        fontSize: 12.5,
+      }}
+    >
+      <span style={{ color: serving ? T.text : T.text2 }}>{text}</span>
+      <span style={{ color: serving ? T.green : T.text3, fontWeight: serving ? 700 : 500, textTransform: 'uppercase' }}>{status}</span>
+    </div>
   );
 }

@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
-import { C, FONT_MONO } from '../theme';
+import { FONT_MONO, T } from '../theme';
 import { useAuth } from '../lib/useAuth';
 
 // Route guard for authenticated pages. While the initial GET /v1/me hydration is
-// in flight we render a minimal CRT spinner (avoids a flash-redirect before the
-// stored token is validated). Once settled: an account means render the page; no
-// account (no token / me() failed) means redirect to /login.
+// in flight we render a minimal brutalist placeholder (avoids a flash-redirect
+// before the stored token is validated). Once settled: an account means render the
+// page; no account (no token / me() failed) means redirect to /login.
 
-/** Minimal full-screen CRT placeholder shown while the session is validating. */
+/** Minimal full-screen v5 placeholder shown while the session is validating. */
 function AuthCheckingScreen() {
   return (
     <div
@@ -18,14 +18,21 @@ function AuthCheckingScreen() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: C.bg,
-        color: C.dim,
+        background: T.bg,
+        color: T.text2,
         fontFamily: FONT_MONO,
-        fontSize: 12.5,
-        letterSpacing: '0.1em',
+        fontSize: 12,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
       }}
     >
-      <span style={{ color: C.green }}>● </span>&nbsp;AUTHENTICATING…
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+        <span
+          className="spnr-blink"
+          style={{ width: 9, height: 9, background: T.ember, display: 'inline-block' }}
+        />
+        Authenticating…
+      </span>
     </div>
   );
 }
