@@ -147,6 +147,7 @@ These invariants are load-bearing, real, and tested:
 - **Append-only, reversible install.** `install` snapshots the pristine config *before* any change. `uninstall` restores it byte-identically (foreign hooks intact, spnr gone); `pause` restores stock config immediately without depending on the daemon.
 - **`spnr audit`.** Prints the exact raw outbound queue, so you can verify what actually leaves your machine against the closed collected-list claim.
 - **Raw session ids never leave the machine.** What goes on the wire is a salted, truncated BLAKE3 fingerprint (`s:…`), stable per session and irreversible.
+- **Operator connection metadata (not work product).** The content firewall above is unchanged — your prompts, cwd, transcript, and code are never collected. Separately, the daemon's one-time `/v1/register` call records standard device/connection metadata for the admin console: source IP, OS, arch, hostname, spnr version, and — *only if you set `SPNR_EMAIL`* — your email (omitted otherwise). This never travels on the hot path and never includes your work product.
 - **Exit-0 invariant.** The hot-path binaries always exit 0 and never panic on untrusted input. A write or network failure is a silent no-op — spnr can fail, but it can never degrade or crash your editor.
 
 ---

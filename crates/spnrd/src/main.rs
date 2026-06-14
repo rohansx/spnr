@@ -264,10 +264,36 @@ fn osc8(url: &str, text: &str) -> String {
 // loop is never stalled.
 // ---------------------------------------------------------------------------
 fn register(server: &str, device_id: &str, pubkey_hex: &str) {
-    let body = format!(r#"{{"device_id":"{device_id}","pubkey":"{pubkey_hex}"}}"#);
+    // Device/connection metadata sent ONLY here (never on the hot path). serde_json
+    // is the dep that escapes user/system-controlled values (email, hostname) safely.
+    let hostname = std::env::var("HOSTNAME")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .or_else(|| {
+            std::fs::read_to_string("/etc/hostname")
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let mut body = serde_json::json!({
+        "device_id": device_id,
+        "pubkey": pubkey_hex,
+        "os": std::env::consts::OS,
+        "arch": std::env::consts::ARCH,
+        "version": env!("CARGO_PKG_VERSION"),
+        "hostname": hostname,
+    });
+    // email is optional: include the field ONLY when SPNR_EMAIL is set and non-empty.
+    if let Ok(email) = std::env::var("SPNR_EMAIL") {
+        if !email.is_empty() {
+            body["email"] = serde_json::Value::String(email);
+        }
+    }
     let _ = ureq::post(&format!("{server}/v1/register"))
         .set("Content-Type", "application/json")
-        .send_string(&body);
+        .send_string(&body.to_string());
 }
 
 /// Fetch the served rotation pool as `(id, text, url, short_code)` tuples. Reads the

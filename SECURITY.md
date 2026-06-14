@@ -29,6 +29,30 @@ properties are load-bearing and tested:
 - **Never degrade the host.** The hot-path binaries always exit 0. A failure is
   a no-op, never a crash that breaks your coding session.
 
+### What spnr collects
+
+The **content firewall is unchanged**: your prompts, working directory,
+transcripts, and code are **never** collected. The hot-path binaries
+(`spnr-hook`, `spnr-status`) still send only `hook_event_name` + `session_id`,
+and raw session ids never leave the machine (only a salted BLAKE3 fingerprint
+does). No work-product is ever captured.
+
+Separately — and **only from the daemon (`spnrd`) at registration**
+(`/v1/register`), never from the hot path — spnr records standard
+**device/connection metadata** so the operator console can show connected
+installs:
+
+- **Source IP** of the registration request (recorded server-side).
+- **OS**, **arch**, **hostname**, and the **spnr version** of the install.
+- **Your email** — **only if you set `SPNR_EMAIL`** at install time. If you
+  don't set it, no email is sent or stored; the field is omitted entirely.
+
+This is ordinary operator telemetry (who is connected, from where, on what
+build) — not your work product. Impression events carry only
+`hook_event_name` + `session_id`; the connection metadata above is the *only*
+additional information leaving the machine, and it travels solely on the
+daemon's one-time `/v1/register` call.
+
 Signed telemetry (impressions) uses the SAP/1 protocol: Ed25519-signed,
 BLAKE3 hash-chained events with ULIDs and a monotonic counter, deduplicated and
 signature-verified server-side on ingest.

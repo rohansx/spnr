@@ -128,6 +128,11 @@ cat <<EOF
     spnr audit         # the raw outbound queue (privacy self-check)
     spnr uninstall     # reverse everything; restores your pristine settings
 
+  Tip: link this install to your account in the operator console (shown under
+  Connected sessions) by setting SPNR_EMAIL when you install:
+
+    SPNR_EMAIL=you@example.com curl -fsSL https://get.spnr.sh | bash
+
   Connected to: $SPNR_SERVER
   Daemon log:   $DAEMON_LOG
 EOF

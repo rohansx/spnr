@@ -20,10 +20,10 @@ use argon2::password_hash::rand_core::{OsRng, RngCore};
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
 use axum::{
-    extract::{Path, State},
+    extract::{ConnectInfo, Path, State},
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Redirect},
-    routing::{get, post},
+    routing::{delete, get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -103,6 +103,11 @@ struct AppState {
     /// Durable store. `None` for pure in-memory unit-test state (`seeded()`);
     /// `Some(conn)` when backed by SQLite. All mutations write through to it.
     db: Option<rusqlite::Connection>,
+    /// Operator admin token gating `/admin/*`. Read once at startup from the
+    /// `SPNR_ADMIN_TOKEN` env var. `None` => `/admin/*` return 503 (never run
+    /// open); a request whose `X-Admin-Token` differs => 401. Unit-test state
+    /// (`seeded()`) leaves this `None`.
+    admin_token: Option<String>,
 }
 
 impl AppState {
@@ -157,6 +162,7 @@ impl AppState {
             redemptions: Vec::new(),
             next_redemption_id: 1,
             db: None,
+            admin_token: None,
         }
     }
 
@@ -178,6 +184,30 @@ impl AppState {
         state.rejected = loaded.rejected;
         state.redemptions = loaded.redemptions;
         state.next_redemption_id = loaded.next_redemption_id;
+
+        // Creatives are now durable. On first boot the table is empty: SEED it with
+        // the 3 house ads (already in `state.creatives` from `seeded()`) so current
+        // behavior is unchanged, and persist them. Thereafter, REBUILD the in-memory
+        // serving pool from the table's ACTIVE rows only.
+        let stored = db::load_creatives(&conn)?;
+        if stored.is_empty() {
+            let now = now_unix();
+            for c in &state.creatives {
+                db::insert_creative(&conn, c, true, now);
+            }
+        } else {
+            state.creatives = stored
+                .into_iter()
+                .filter(|lc| lc.active)
+                .map(|lc| lc.creative)
+                .collect();
+        }
+
+        // Operator admin token (gates /admin/*). Empty string counts as unset.
+        state.admin_token = std::env::var("SPNR_ADMIN_TOKEN")
+            .ok()
+            .filter(|t| !t.is_empty());
+
         state.db = Some(conn);
         Ok(state)
     }
@@ -223,6 +253,18 @@ struct RegisterReq {
     device_id: String,
     /// Ed25519 public key, lowercase hex (32 bytes).
     pubkey: String,
+    // --- device/connection telemetry (daemon-only metadata; NEVER work product) ---
+    // All optional: older daemons omit them and register exactly as before.
+    #[serde(default)]
+    os: Option<String>,
+    #[serde(default)]
+    arch: Option<String>,
+    #[serde(default)]
+    hostname: Option<String>,
+    #[serde(default)]
+    version: Option<String>,
+    #[serde(default)]
+    email: Option<String>,
 }
 #[derive(Serialize)]
 struct RegisterResp {
@@ -317,6 +359,111 @@ struct StatsResp {
 
 fn usd(micros: i64) -> String {
     format!("${:.3}", micros as f64 / 1_000_000.0)
+}
+
+// --------------------------------------------------------------------------
+// Admin / telemetry wire types. Guarded by the X-Admin-Token header.
+// --------------------------------------------------------------------------
+
+/// One creative as returned by the admin views (carries the `active` flag, which
+/// the public /v1/serve shape omits).
+#[derive(Serialize)]
+struct AdminCreative {
+    id: String,
+    text: String,
+    url: String,
+    short_code: String,
+    advertiser: String,
+    active: bool,
+}
+#[derive(Serialize)]
+struct AdminCreativesResp {
+    creatives: Vec<AdminCreative>,
+}
+/// Body for POST /admin/creatives. `advertiser` is optional (defaults to a
+/// generic advertiser account when omitted).
+#[derive(Deserialize)]
+struct NewCreativeReq {
+    text: String,
+    url: String,
+    #[serde(default)]
+    advertiser: Option<String>,
+}
+#[derive(Serialize)]
+struct CreateCreativeResp {
+    creative: AdminCreative,
+}
+#[derive(Serialize)]
+struct OkResp {
+    ok: bool,
+}
+#[derive(Serialize)]
+struct AdminError {
+    error: String,
+}
+/// One connected session row for GET /admin/devices.
+#[derive(Serialize)]
+struct AdminDevice {
+    device_id: String,
+    email: String,
+    ip: String,
+    os: String,
+    arch: String,
+    hostname: String,
+    version: String,
+    impressions: u64,
+    first_seen: i64,
+    last_seen: i64,
+}
+#[derive(Serialize)]
+struct AdminDevicesResp {
+    devices: Vec<AdminDevice>,
+}
+
+fn admin_error(status: StatusCode, msg: &str) -> axum::response::Response {
+    (status, Json(AdminError { error: msg.into() })).into_response()
+}
+
+/// Gate `/admin/*`: returns `Ok(())` when the request is authorized.
+/// - backend has NO `SPNR_ADMIN_TOKEN` set -> `Err(503)` (never run open).
+/// - header `X-Admin-Token` missing or != the configured token -> `Err(401)`.
+#[allow(clippy::result_large_err)]
+fn check_admin(s: &AppState, headers: &HeaderMap) -> Result<(), axum::response::Response> {
+    let configured = match &s.admin_token {
+        Some(t) => t,
+        None => {
+            return Err(admin_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "admin token not configured",
+            ))
+        }
+    };
+    let presented = headers
+        .get("x-admin-token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    if presented == configured.as_str() {
+        Ok(())
+    } else {
+        Err(admin_error(StatusCode::UNAUTHORIZED, "invalid admin token"))
+    }
+}
+
+/// Generate a creative id: "cr_" + 8 lowercase-hex chars.
+fn new_creative_id() -> String {
+    let mut bytes = [0u8; 4];
+    OsRng.fill_bytes(&mut bytes);
+    format!("cr_{}", data_encoding::HEXLOWER.encode(&bytes))
+}
+
+/// Generate a 6-char url-safe short code from [A-Za-z0-9].
+fn new_short_code() -> String {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut raw = [0u8; 6];
+    OsRng.fill_bytes(&mut raw);
+    raw.iter()
+        .map(|b| ALPHABET[(*b as usize) % ALPHABET.len()] as char)
+        .collect()
 }
 
 // --------------------------------------------------------------------------
@@ -417,9 +564,17 @@ async fn health() -> &'static str {
     "ok"
 }
 
-async fn register(State(st): State<Shared>, Json(req): Json<RegisterReq>) -> impl IntoResponse {
+async fn register(
+    State(st): State<Shared>,
+    ConnectInfo(peer): ConnectInfo<std::net::SocketAddr>,
+    headers: HeaderMap,
+    Json(req): Json<RegisterReq>,
+) -> impl IntoResponse {
     let mut s = st.lock().unwrap();
     let account_id = format!("acct:{}", req.device_id);
+    // Source IP: prefer the first hop of X-Forwarded-For (the original client when
+    // behind a proxy/load balancer), else the connecting peer's address.
+    let ip = client_ip(&headers, &peer);
     match decode_pubkey(&req.pubkey) {
         Some(pubkey) => {
             let rec = DeviceRec {
@@ -431,11 +586,23 @@ async fn register(State(st): State<Shared>, Json(req): Json<RegisterReq>) -> imp
             s.devices.insert(req.device_id.clone(), rec.clone());
             s.balances.entry(account_id.clone()).or_insert(0);
             s.impressions.entry(account_id.clone()).or_insert(0);
-            // Write-through: persist the device + ensure its balance/impression rows.
+            // Write-through: persist the device + ensure its balance/impression rows,
+            // and upsert the device telemetry (connection metadata only).
             if let Some(conn) = &s.db {
                 db::upsert_device(conn, &req.device_id, &rec);
                 db::ensure_balance(conn, &account_id);
                 db::ensure_impressions(conn, &account_id);
+                db::upsert_device_meta(
+                    conn,
+                    &req.device_id,
+                    Some(ip.as_str()),
+                    opt_str(&req.os),
+                    opt_str(&req.arch),
+                    opt_str(&req.hostname),
+                    opt_str(&req.version),
+                    opt_str(&req.email),
+                    now_unix(),
+                );
             }
             Json(RegisterResp { ok: true, account_id }).into_response()
         }
@@ -445,6 +612,27 @@ async fn register(State(st): State<Shared>, Json(req): Json<RegisterReq>) -> imp
         )
             .into_response(),
     }
+}
+
+/// Determine the source IP for a request: the first hop of `X-Forwarded-For`
+/// (the original client when behind a proxy) if present and non-empty, else the
+/// connecting peer's IP.
+fn client_ip(headers: &HeaderMap, peer: &std::net::SocketAddr) -> String {
+    if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+        if let Some(first) = xff.split(',').next() {
+            let first = first.trim();
+            if !first.is_empty() {
+                return first.to_string();
+            }
+        }
+    }
+    peer.ip().to_string()
+}
+
+/// Treat an empty/blank optional string as absent, so a daemon that sends an
+/// empty field does not overwrite a previously-recorded value.
+fn opt_str(o: &Option<String>) -> Option<&str> {
+    o.as_deref().map(str::trim).filter(|s| !s.is_empty())
 }
 
 async fn serve(State(st): State<Shared>) -> Json<ServeResp> {
@@ -467,6 +655,167 @@ async fn serve(State(st): State<Shared>) -> Json<ServeResp> {
         url: s.creative_url.clone(),
     });
     Json(ServeResp { creative, creatives })
+}
+
+// --------------------------------------------------------------------------
+// Admin handlers. Every one first calls `check_admin`: 503 if the backend has no
+// SPNR_ADMIN_TOKEN, 401 on a wrong/absent X-Admin-Token, then proceeds.
+// --------------------------------------------------------------------------
+
+/// GET /admin/creatives -> ALL creatives (active and inactive), from the durable
+/// pool. Falls back to the in-memory active pool when there is no db.
+async fn admin_list_creatives(State(st): State<Shared>, headers: HeaderMap) -> impl IntoResponse {
+    let s = st.lock().unwrap();
+    if let Err(resp) = check_admin(&s, &headers) {
+        return resp;
+    }
+    let creatives: Vec<AdminCreative> = match &s.db {
+        Some(conn) => match db::load_creatives(conn) {
+            Ok(rows) => rows
+                .into_iter()
+                .map(|lc| AdminCreative {
+                    id: lc.creative.id,
+                    text: lc.creative.text,
+                    url: lc.creative.url,
+                    short_code: lc.creative.short_code,
+                    advertiser: lc.creative.advertiser,
+                    active: lc.active,
+                })
+                .collect(),
+            Err(_) => {
+                return admin_error(StatusCode::INTERNAL_SERVER_ERROR, "creatives store error")
+            }
+        },
+        // No db: the in-memory pool holds only active creatives.
+        None => s
+            .creatives
+            .iter()
+            .map(|c| AdminCreative {
+                id: c.id.clone(),
+                text: c.text.clone(),
+                url: c.url.clone(),
+                short_code: c.short_code.clone(),
+                advertiser: c.advertiser.clone(),
+                active: true,
+            })
+            .collect(),
+    };
+    (StatusCode::OK, Json(AdminCreativesResp { creatives })).into_response()
+}
+
+/// POST /admin/creatives {text, url, advertiser?} -> 201 with the created
+/// creative. Server-generates id + short_code; active=true; mutates BOTH the
+/// in-memory serving pool and the durable table.
+async fn admin_create_creative(
+    State(st): State<Shared>,
+    headers: HeaderMap,
+    Json(req): Json<NewCreativeReq>,
+) -> impl IntoResponse {
+    let mut s = st.lock().unwrap();
+    if let Err(resp) = check_admin(&s, &headers) {
+        return resp;
+    }
+    let text = req.text.trim().to_string();
+    let url = req.url.trim().to_string();
+    if text.is_empty() || url.is_empty() {
+        return admin_error(StatusCode::BAD_REQUEST, "text and url are required");
+    }
+    let advertiser = req
+        .advertiser
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|a| format!("acct:advertiser:{a}"))
+        .unwrap_or_else(|| "acct:advertiser".to_string());
+
+    let creative = Creative {
+        id: new_creative_id(),
+        text,
+        url,
+        short_code: new_short_code(),
+        advertiser,
+        campaign_name: String::new(),
+    };
+
+    // Mutate both the in-memory serving pool and the durable table.
+    if let Some(conn) = &s.db {
+        db::insert_creative(conn, &creative, true, now_unix());
+    }
+    s.creatives.push(creative.clone());
+
+    let body = CreateCreativeResp {
+        creative: AdminCreative {
+            id: creative.id,
+            text: creative.text,
+            url: creative.url,
+            short_code: creative.short_code,
+            advertiser: creative.advertiser,
+            active: true,
+        },
+    };
+    (StatusCode::CREATED, Json(body)).into_response()
+}
+
+/// DELETE /admin/creatives/{id} -> 200 {ok:true}; 404 if absent. Removes it from
+/// the serving pool (in-memory) and soft-deletes it (active=0) in the table.
+async fn admin_delete_creative(
+    State(st): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let mut s = st.lock().unwrap();
+    if let Err(resp) = check_admin(&s, &headers) {
+        return resp;
+    }
+
+    // Source of truth for presence: the db (it retains inactive rows) when present,
+    // else the in-memory active pool.
+    let existed = match &s.db {
+        Some(conn) => db::delete_creative(conn, &id) > 0,
+        None => s.creatives.iter().any(|c| c.id == id),
+    };
+    if !existed {
+        return admin_error(StatusCode::NOT_FOUND, "creative not found");
+    }
+    // Drop it from the in-memory serving pool either way.
+    s.creatives.retain(|c| c.id != id);
+    (StatusCode::OK, Json(OkResp { ok: true })).into_response()
+}
+
+/// GET /admin/devices -> connected sessions with their telemetry + impressions.
+/// Impressions are joined from the ledger maps: account_id = "acct:"+device_id.
+async fn admin_list_devices(State(st): State<Shared>, headers: HeaderMap) -> impl IntoResponse {
+    let s = st.lock().unwrap();
+    if let Err(resp) = check_admin(&s, &headers) {
+        return resp;
+    }
+    let rows = match &s.db {
+        Some(conn) => match db::list_device_meta(conn) {
+            Ok(r) => r,
+            Err(_) => return admin_error(StatusCode::INTERNAL_SERVER_ERROR, "devices store error"),
+        },
+        None => Vec::new(),
+    };
+    let devices: Vec<AdminDevice> = rows
+        .into_iter()
+        .map(|r| {
+            let account_id = format!("acct:{}", r.device_id);
+            let impressions = s.impressions.get(&account_id).copied().unwrap_or(0);
+            AdminDevice {
+                device_id: r.device_id,
+                email: r.email.unwrap_or_default(),
+                ip: r.ip.unwrap_or_default(),
+                os: r.os.unwrap_or_default(),
+                arch: r.arch.unwrap_or_default(),
+                hostname: r.hostname.unwrap_or_default(),
+                version: r.version.unwrap_or_default(),
+                impressions,
+                first_seen: r.first_seen,
+                last_seen: r.last_seen,
+            }
+        })
+        .collect();
+    (StatusCode::OK, Json(AdminDevicesResp { devices })).into_response()
 }
 
 async fn ingest(State(st): State<Shared>, Json(req): Json<IngestReq>) -> Json<IngestResp> {
@@ -1002,6 +1351,12 @@ fn app(state: Shared) -> Router {
         .route("/v1/logout", post(logout))
         .route("/api/stats", get(stats))
         .route("/c/{code}", get(click))
+        .route(
+            "/admin/creatives",
+            get(admin_list_creatives).post(admin_create_creative),
+        )
+        .route("/admin/creatives/{id}", delete(admin_delete_creative))
+        .route("/admin/devices", get(admin_list_devices))
         .layer(cors)
         .with_state(state)
 }
@@ -1025,7 +1380,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("spnr-server durable store: {db_path}");
     let listener = tokio::net::TcpListener::bind((host.as_str(), port)).await?;
     eprintln!("spnr-server listening on http://{host}:{port}");
-    axum::serve(listener, app(state)).await?;
+    // `into_make_service_with_connect_info` exposes the peer SocketAddr to handlers
+    // via `ConnectInfo` (used by /v1/register to record the source IP).
+    axum::serve(
+        listener,
+        app(state).into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }
 
@@ -1067,6 +1428,43 @@ mod tests {
             },
         );
         device_id
+    }
+
+    /// A loopback peer address for handler tests that need `ConnectInfo`.
+    fn test_peer() -> std::net::SocketAddr {
+        "127.0.0.1:54321".parse().unwrap()
+    }
+
+    /// A `RegisterReq` with no telemetry fields (the legacy minimal shape).
+    fn register_req(device_id: &str, pubkey: &str) -> RegisterReq {
+        RegisterReq {
+            device_id: device_id.into(),
+            pubkey: pubkey.into(),
+            os: None,
+            arch: None,
+            hostname: None,
+            version: None,
+            email: None,
+        }
+    }
+
+    /// Drive the real `register` handler with a default peer and empty headers.
+    async fn do_register(s: &Shared, req: RegisterReq) -> axum::response::Response {
+        register(
+            State(s.clone()),
+            ConnectInfo(test_peer()),
+            HeaderMap::new(),
+            Json(req),
+        )
+        .await
+        .into_response()
+    }
+
+    /// A header map carrying the admin token.
+    fn admin_headers(token: &str) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        h.insert("x-admin-token", token.parse().unwrap());
+        h
     }
 
     #[test]
@@ -1324,15 +1722,7 @@ mod tests {
         let shared: Shared = Arc::new(Mutex::new(first));
 
         // Register the device through the real handler (write-through to SQLite).
-        let resp = register(
-            State(shared.clone()),
-            Json(RegisterReq {
-                device_id: device_id.clone(),
-                pubkey: pubkey_hex,
-            }),
-        )
-        .await
-        .into_response();
+        let resp = do_register(&shared, register_req(&device_id, &pubkey_hex)).await;
         assert_eq!(resp.status(), axum::http::StatusCode::OK);
 
         // Accept a valid signed impression (10 imps -> dev earns 50_000 micros).
@@ -1601,6 +1991,253 @@ mod tests {
         let resp = me(State(s.clone()), bearer("whatever")).await.into_response();
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
         let resp = logout(State(s.clone()), bearer("whatever"))
+            .await
+            .into_response();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    // ----------------------------------------------------------------------
+    // Admin / telemetry tests. Run against a real `:memory:` AppState (so the
+    // creatives + device_meta tables exist) with the admin token set directly on
+    // the state (avoids an env-var race across parallel tests).
+    // ----------------------------------------------------------------------
+
+    /// A `:memory:` AppState with the admin token configured to `tok`.
+    fn admin_state(tok: &str) -> Shared {
+        let mut st = AppState::open(":memory:").unwrap();
+        st.admin_token = Some(tok.to_string());
+        Arc::new(Mutex::new(st))
+    }
+
+    #[tokio::test]
+    async fn admin_creatives_503_without_a_configured_token() {
+        // db present but no SPNR_ADMIN_TOKEN -> /admin/* are 503 (never run open).
+        let mut inner = AppState::open(":memory:").unwrap();
+        inner.admin_token = None; // explicit: don't depend on ambient env
+        let s: Shared = Arc::new(Mutex::new(inner));
+        let resp = admin_list_creatives(State(s.clone()), HeaderMap::new())
+            .await
+            .into_response();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn admin_creatives_401_with_wrong_or_absent_token() {
+        let s = admin_state("s3cret");
+        // No token header at all -> 401.
+        let resp = admin_list_creatives(State(s.clone()), HeaderMap::new())
+            .await
+            .into_response();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        // Wrong token -> 401.
+        let resp = admin_list_creatives(State(s.clone()), admin_headers("nope"))
+            .await
+            .into_response();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn admin_create_then_list_roundtrips_and_seeds_house_ads() {
+        let s = admin_state("s3cret");
+
+        // Fresh db is seeded with the 3 house ads (current behavior unchanged).
+        let resp = admin_list_creatives(State(s.clone()), admin_headers("s3cret"))
+            .await
+            .into_response();
+        let (status, body) = read_body(resp).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["creatives"].as_array().unwrap().len(), 3);
+
+        // Create a new creative.
+        let resp = admin_create_creative(
+            State(s.clone()),
+            admin_headers("s3cret"),
+            Json(NewCreativeReq {
+                text: "Acme — buy widgets ↗".into(),
+                url: "https://acme.example/widgets".into(),
+                advertiser: Some("acme".into()),
+            }),
+        )
+        .await
+        .into_response();
+        let (status, body) = read_body(resp).await;
+        assert_eq!(status, StatusCode::CREATED);
+        let new_id = body["creative"]["id"].as_str().unwrap().to_string();
+        assert!(new_id.starts_with("cr_"));
+        assert_eq!(new_id.len(), 3 + 8); // "cr_" + 8 hex
+        assert_eq!(body["creative"]["active"], true);
+        let sc = body["creative"]["short_code"].as_str().unwrap();
+        assert_eq!(sc.len(), 6);
+        assert!(sc.chars().all(|c| c.is_ascii_alphanumeric()));
+
+        // Now GET returns all 4 (the 3 house ads + the new one).
+        let resp = admin_list_creatives(State(s.clone()), admin_headers("s3cret"))
+            .await
+            .into_response();
+        let (_, body) = read_body(resp).await;
+        let ids: Vec<&str> = body["creatives"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids.len(), 4);
+        assert!(ids.contains(&new_id.as_str()));
+
+        // And /v1/serve now includes it in the active rotation.
+        let served = serve(State(s.clone())).await;
+        assert!(served.0.creatives.iter().any(|c| c.id == new_id));
+    }
+
+    #[tokio::test]
+    async fn admin_delete_drops_from_serve_but_stays_listed_inactive() {
+        let s = admin_state("s3cret");
+
+        // Add one, then delete it.
+        let resp = admin_create_creative(
+            State(s.clone()),
+            admin_headers("s3cret"),
+            Json(NewCreativeReq {
+                text: "Temp ad".into(),
+                url: "https://temp.example".into(),
+                advertiser: None,
+            }),
+        )
+        .await
+        .into_response();
+        let (_, body) = read_body(resp).await;
+        let id = body["creative"]["id"].as_str().unwrap().to_string();
+
+        // Present in serve before delete.
+        let served = serve(State(s.clone())).await;
+        assert!(served.0.creatives.iter().any(|c| c.id == id));
+
+        // Delete it -> 200 {ok:true}.
+        let resp = admin_delete_creative(
+            State(s.clone()),
+            admin_headers("s3cret"),
+            Path(id.clone()),
+        )
+        .await
+        .into_response();
+        let (status, body) = read_body(resp).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body["ok"], true);
+
+        // Gone from /v1/serve (the active serving pool).
+        let served = serve(State(s.clone())).await;
+        assert!(!served.0.creatives.iter().any(|c| c.id == id));
+
+        // Still listed by admin, now active=false.
+        let resp = admin_list_creatives(State(s.clone()), admin_headers("s3cret"))
+            .await
+            .into_response();
+        let (_, body) = read_body(resp).await;
+        let row = body["creatives"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["id"] == serde_json::json!(id))
+            .expect("deleted creative still listed");
+        assert_eq!(row["active"], false);
+
+        // Deleting an unknown id -> 404.
+        let resp = admin_delete_creative(
+            State(s.clone()),
+            admin_headers("s3cret"),
+            Path("cr_doesnotexist".into()),
+        )
+        .await
+        .into_response();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn register_with_os_email_upserts_device_meta_and_admin_devices_shows_it() {
+        let s = admin_state("s3cret");
+        let key = DeviceKey::generate();
+        let device_id = key.device_id();
+        let pubkey_hex = data_encoding::HEXLOWER.encode(&key.verifying_key().to_bytes());
+
+        // Register WITH telemetry + an X-Forwarded-For so the recorded IP is the
+        // first hop, not the loopback peer.
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-for", "203.0.113.7, 10.0.0.1".parse().unwrap());
+        let resp = register(
+            State(s.clone()),
+            ConnectInfo(test_peer()),
+            headers,
+            Json(RegisterReq {
+                device_id: device_id.clone(),
+                pubkey: pubkey_hex,
+                os: Some("linux".into()),
+                arch: Some("x86_64".into()),
+                hostname: Some("dev-box".into()),
+                version: Some("0.1.0".into()),
+                email: Some("dev@example.com".into()),
+            }),
+        )
+        .await
+        .into_response();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // Accrue some impressions so /admin/devices shows a non-zero count.
+        let se = signed_imp(&key, 0, GENESIS_PREV, 4);
+        let ing = ingest(
+            State(s.clone()),
+            Json(IngestReq {
+                device_id: device_id.clone(),
+                events: vec![se],
+            }),
+        )
+        .await;
+        assert_eq!(ing.0.accepted, 1);
+
+        let resp = admin_list_devices(State(s.clone()), admin_headers("s3cret"))
+            .await
+            .into_response();
+        let (status, body) = read_body(resp).await;
+        assert_eq!(status, StatusCode::OK);
+        let devs = body["devices"].as_array().unwrap();
+        assert_eq!(devs.len(), 1);
+        let d = &devs[0];
+        assert_eq!(d["device_id"], serde_json::json!(device_id));
+        assert_eq!(d["email"], "dev@example.com");
+        assert_eq!(d["os"], "linux");
+        assert_eq!(d["arch"], "x86_64");
+        assert_eq!(d["hostname"], "dev-box");
+        assert_eq!(d["version"], "0.1.0");
+        // First hop of X-Forwarded-For wins over the connecting peer.
+        assert_eq!(d["ip"], "203.0.113.7");
+        // Impressions joined from the ledger maps (acct:<device_id>).
+        assert_eq!(d["impressions"], 4);
+
+        // A second register (e.g. a re-run) without email must NOT wipe the email,
+        // and first_seen stays put while last_seen advances.
+        let first_seen_before = d["first_seen"].as_i64().unwrap();
+        let resp = do_register(&s, register_req(&device_id, &data_encoding::HEXLOWER.encode(&key.verifying_key().to_bytes()))).await;
+        assert_eq!(resp.status(), StatusCode::OK);
+        let resp = admin_list_devices(State(s.clone()), admin_headers("s3cret"))
+            .await
+            .into_response();
+        let (_, body) = read_body(resp).await;
+        let d = &body["devices"].as_array().unwrap()[0];
+        assert_eq!(d["email"], "dev@example.com", "email must survive a telemetry-less re-register");
+        assert_eq!(d["first_seen"].as_i64().unwrap(), first_seen_before);
+    }
+
+    #[tokio::test]
+    async fn admin_devices_requires_the_token() {
+        let s = admin_state("s3cret");
+        let resp = admin_list_devices(State(s.clone()), HeaderMap::new())
+            .await
+            .into_response();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+        // No token configured -> 503.
+        let mut inner2 = AppState::open(":memory:").unwrap();
+        inner2.admin_token = None; // explicit: don't depend on ambient env
+        let s2: Shared = Arc::new(Mutex::new(inner2));
+        let resp = admin_list_devices(State(s2), admin_headers("whatever"))
             .await
             .into_response();
         assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);

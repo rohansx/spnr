@@ -15,6 +15,7 @@
 import express, { type Express, type Request, type Response } from "express";
 import { Store } from "./store.js";
 import { renderAdmin } from "./admin.js";
+import { adminAuth } from "./admin-auth.js";
 
 /** Rust backend the admin panel reads /api/stats + /v1/serve from. */
 const BACKEND_URL = process.env.SPNR_BACKEND ?? "http://82.112.226.62:8787";
@@ -22,20 +23,59 @@ const BACKEND_URL = process.env.SPNR_BACKEND ?? "http://82.112.226.62:8787";
 export function createApp(store: Store = new Store()): Express {
   const app = express();
   app.use(express.json({ limit: "16kb" }));
+  // Admin mutation forms post application/x-www-form-urlencoded bodies.
+  app.use(express.urlencoded({ extended: false, limit: "16kb" }));
 
-  // Liveness probe (hermetic E2E + load balancers).
+  // Liveness probe (hermetic E2E + load balancers) — OPEN.
   app.get("/health", (_req: Request, res: Response) => {
     res.json({ ok: true });
   });
 
-  // Operator admin panel: campaigns + active serving pool + network stats, one page.
+  // Operator admin panel: campaigns + active serving pool + network stats + sessions,
+  // one page. Basic-Auth guarded (fails closed without SPNR_ADMIN_PASSWORD).
   app.get("/", (_req: Request, res: Response) => res.redirect("/admin"));
-  app.get("/admin", async (_req: Request, res: Response) => {
+  app.get("/admin", adminAuth, async (_req: Request, res: Response) => {
     try {
       res.type("html").send(await renderAdmin(store, BACKEND_URL));
     } catch {
       res.status(500).type("html").send("<h1>spnr admin temporarily unavailable</h1>");
     }
+  });
+
+  // --- Admin mutation routes (Basic-Auth guarded) -> proxy to the Rust backend's
+  //     token-protected /admin/creatives surface, then redirect back to the panel.
+  const adminToken = (): string => process.env.SPNR_ADMIN_TOKEN ?? "";
+
+  // Add an advertisement to the serving pool. urlencoded body: text, url, advertiser?.
+  app.post("/admin/ads", adminAuth, async (req: Request, res: Response) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const text = typeof body.text === "string" ? body.text : "";
+    const url = typeof body.url === "string" ? body.url : "";
+    const advertiser = typeof body.advertiser === "string" ? body.advertiser : "";
+    try {
+      await fetch(`${BACKEND_URL}/admin/creatives`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "X-Admin-Token": adminToken() },
+        body: JSON.stringify({ text, url, advertiser }),
+      });
+    } catch {
+      // Fail soft: redirect back; the refreshed panel reflects the real backend state.
+    }
+    res.redirect("/admin");
+  });
+
+  // Remove an advertisement from the serving pool by creative id.
+  app.post("/admin/ads/:id/delete", adminAuth, async (req: Request, res: Response) => {
+    const id = req.params.id ?? "";
+    try {
+      await fetch(`${BACKEND_URL}/admin/creatives/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: { "X-Admin-Token": adminToken() },
+      });
+    } catch {
+      // Fail soft: redirect back; the refreshed panel reflects the real backend state.
+    }
+    res.redirect("/admin");
   });
 
   // Create a campaign. Body: { advertiser, name, price_per_block_usd >= 1 }.

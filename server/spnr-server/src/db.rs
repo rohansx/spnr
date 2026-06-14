@@ -18,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{params, Connection};
 use spnr_proto::VerifyingKey;
 
-use crate::{DeviceRec, LedgerEntry, Redemption};
+use crate::{Creative, DeviceRec, LedgerEntry, Redemption};
 
 /// Open (or create) the SQLite database at `path`. The special value `":memory:"`
 /// yields a private in-memory database. Creates the schema if absent.
@@ -80,6 +80,27 @@ fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             token        TEXT PRIMARY KEY,
             account_id   TEXT NOT NULL,
             created_unix INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS creatives (
+            id            TEXT PRIMARY KEY,
+            text          TEXT    NOT NULL,
+            url           TEXT    NOT NULL,
+            short_code    TEXT    NOT NULL,
+            advertiser    TEXT    NOT NULL,
+            campaign_name TEXT    NOT NULL,
+            active        INTEGER NOT NULL,
+            created_unix  INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS device_meta (
+            device_id  TEXT PRIMARY KEY,
+            ip         TEXT,
+            os         TEXT,
+            arch       TEXT,
+            hostname   TEXT,
+            version    TEXT,
+            email      TEXT,
+            first_seen INTEGER NOT NULL,
+            last_seen  INTEGER NOT NULL
         );
         "#,
     )
@@ -467,6 +488,173 @@ pub fn insert_redemption(conn: &Connection, r: &Redemption) {
         ),
         "insert_redemption",
     );
+}
+
+// --------------------------------------------------------------------------
+// Creatives (the durable serving pool). The in-memory `AppState::creatives`
+// holds only the ACTIVE rows for serving; this table is the source of truth and
+// retains inactive (deleted) rows for the admin "all creatives" view.
+// --------------------------------------------------------------------------
+
+/// Insert one creative row. The table is the durable serving pool.
+pub fn insert_creative(conn: &Connection, c: &Creative, active: bool, created_unix: i64) {
+    log_err(
+        conn.execute(
+            "INSERT INTO creatives
+                (id, text, url, short_code, advertiser, campaign_name, active, created_unix)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(id) DO UPDATE SET
+               text          = excluded.text,
+               url           = excluded.url,
+               short_code    = excluded.short_code,
+               advertiser    = excluded.advertiser,
+               campaign_name = excluded.campaign_name,
+               active        = excluded.active",
+            params![
+                c.id,
+                c.text,
+                c.url,
+                c.short_code,
+                c.advertiser,
+                c.campaign_name,
+                active as i64,
+                created_unix
+            ],
+        ),
+        "insert_creative",
+    );
+}
+
+/// Soft-delete a creative: mark it inactive so it leaves the serving pool but is
+/// still listed in the admin "all creatives" view. Returns rows affected (0 if
+/// the id is absent -> the handler maps that to 404).
+pub fn delete_creative(conn: &Connection, id: &str) -> usize {
+    match conn.execute(
+        "UPDATE creatives SET active = 0 WHERE id = ?1 AND active = 1",
+        params![id],
+    ) {
+        Ok(n) => n,
+        Err(e) => {
+            eprintln!("spnr-server: sqlite delete_creative failed: {e}");
+            0
+        }
+    }
+}
+
+/// A loaded creative row plus its `active` flag (the in-memory pool drops the
+/// flag; the admin view keeps it).
+pub struct LoadedCreative {
+    pub creative: Creative,
+    pub active: bool,
+}
+
+/// Load ALL creatives (active and inactive), ordered by insertion time so the
+/// admin view and the serving rotation are stable.
+pub fn load_creatives(conn: &Connection) -> rusqlite::Result<Vec<LoadedCreative>> {
+    let mut out = Vec::new();
+    let mut stmt = conn.prepare(
+        "SELECT id, text, url, short_code, advertiser, campaign_name, active
+         FROM creatives ORDER BY created_unix, id",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        let active: i64 = row.get(6)?;
+        Ok(LoadedCreative {
+            creative: Creative {
+                id: row.get(0)?,
+                text: row.get(1)?,
+                url: row.get(2)?,
+                short_code: row.get(3)?,
+                advertiser: row.get(4)?,
+                campaign_name: row.get(5)?,
+            },
+            active: active != 0,
+        })
+    })?;
+    for r in rows {
+        out.push(r?);
+    }
+    Ok(out)
+}
+
+// --------------------------------------------------------------------------
+// Device telemetry metadata (connection/device facts the daemon reports at
+// /v1/register: ip, os, arch, hostname, version, email). NEVER work product.
+// --------------------------------------------------------------------------
+
+/// One device_meta row for the admin "Connected sessions" view. `impressions`
+/// is NOT stored here — the handler joins it from the balances/impressions maps
+/// (account_id = "acct:" + device_id).
+pub struct DeviceMetaRow {
+    pub device_id: String,
+    pub ip: Option<String>,
+    pub os: Option<String>,
+    pub arch: Option<String>,
+    pub hostname: Option<String>,
+    pub version: Option<String>,
+    pub email: Option<String>,
+    pub first_seen: i64,
+    pub last_seen: i64,
+}
+
+/// Upsert a device_meta row keyed by device_id. `first_seen` is set ONCE (the
+/// existing value is preserved on conflict); `last_seen` always advances. Any
+/// provided field overwrites; an absent field (None) keeps the prior value.
+#[allow(clippy::too_many_arguments)]
+pub fn upsert_device_meta(
+    conn: &Connection,
+    device_id: &str,
+    ip: Option<&str>,
+    os: Option<&str>,
+    arch: Option<&str>,
+    hostname: Option<&str>,
+    version: Option<&str>,
+    email: Option<&str>,
+    now: i64,
+) {
+    log_err(
+        conn.execute(
+            "INSERT INTO device_meta
+                (device_id, ip, os, arch, hostname, version, email, first_seen, last_seen)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)
+             ON CONFLICT(device_id) DO UPDATE SET
+               ip        = COALESCE(excluded.ip, device_meta.ip),
+               os        = COALESCE(excluded.os, device_meta.os),
+               arch      = COALESCE(excluded.arch, device_meta.arch),
+               hostname  = COALESCE(excluded.hostname, device_meta.hostname),
+               version   = COALESCE(excluded.version, device_meta.version),
+               email     = COALESCE(excluded.email, device_meta.email),
+               last_seen = excluded.last_seen",
+            params![device_id, ip, os, arch, hostname, version, email, now],
+        ),
+        "upsert_device_meta",
+    );
+}
+
+/// List all device_meta rows for the admin "Connected sessions" view, most
+/// recently seen first.
+pub fn list_device_meta(conn: &Connection) -> rusqlite::Result<Vec<DeviceMetaRow>> {
+    let mut out = Vec::new();
+    let mut stmt = conn.prepare(
+        "SELECT device_id, ip, os, arch, hostname, version, email, first_seen, last_seen
+         FROM device_meta ORDER BY last_seen DESC, device_id",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok(DeviceMetaRow {
+            device_id: row.get(0)?,
+            ip: row.get(1)?,
+            os: row.get(2)?,
+            arch: row.get(3)?,
+            hostname: row.get(4)?,
+            version: row.get(5)?,
+            email: row.get(6)?,
+            first_seen: row.get(7)?,
+            last_seen: row.get(8)?,
+        })
+    })?;
+    for r in rows {
+        out.push(r?);
+    }
+    Ok(out)
 }
 
 /// Decode an Ed25519 verifying key from lowercase hex (32 bytes).
