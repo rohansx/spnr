@@ -143,7 +143,7 @@ export async function renderAdmin(store: Store, backendUrl: string): Promise<str
         ${statCard("redeemed", s("total_redeemed_usd", "$0.000"))}
         ${statCard("devices", s("devices", "0"))}
         ${statCard("attestation", `${s("attestation_pct", "100")}%`)}
-        ${statCard("ledger", s("ledger_balanced") === "true" ? "balanced ✓" : "UNBALANCED")}
+        ${statCard("ledger", s("ledger_balanced") === "true" ? "OK ✓" : "UNBAL")}
       </div>`
     : `<div class="warn">network backend unreachable at <code>${esc(backendUrl)}</code> — stats + active pool unavailable.</div>`;
 
@@ -197,7 +197,7 @@ export async function renderAdmin(store: Store, backendUrl: string): Promise<str
   .cell:nth-child(4){ animation-delay:.12s; } .cell:nth-child(5){ animation-delay:.16s; }
   .cell:nth-child(6){ animation-delay:.2s; } .cell:nth-child(7){ animation-delay:.24s; }
   .cell-label{ font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--text3); margin-bottom:10px; }
-  .cell-value{ font-family:var(--mono); font-size:28px; font-weight:700; letter-spacing:-0.03em; color:var(--text); line-height:1; }
+  .cell-value{ font-family:var(--mono); font-size:28px; font-weight:700; letter-spacing:-0.03em; color:var(--text); line-height:1; overflow-wrap:anywhere; }
   .cell-value.accent{ color:var(--ember); }
   .warn{ margin:0; background:var(--surface); border:2px solid var(--red); color:var(--red); padding:18px 22px; font-family:var(--mono); font-size:13px; box-shadow:6px 6px 0 var(--red); }
   .warn code{ background:transparent; border:none; padding:0; color:var(--red); }
