@@ -1,0 +1,6 @@
+node_modules/
+dist/
+portal-store.json
+*.log
+.env
+.env.*

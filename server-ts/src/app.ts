@@ -14,6 +14,10 @@
 
 import express, { type Express, type Request, type Response } from "express";
 import { Store } from "./store.js";
+import { renderAdmin } from "./admin.js";
+
+/** Rust backend the admin panel reads /api/stats + /v1/serve from. */
+const BACKEND_URL = process.env.SPNR_BACKEND ?? "http://82.112.226.62:8787";
 
 export function createApp(store: Store = new Store()): Express {
   const app = express();
@@ -22,6 +26,16 @@ export function createApp(store: Store = new Store()): Express {
   // Liveness probe (hermetic E2E + load balancers).
   app.get("/health", (_req: Request, res: Response) => {
     res.json({ ok: true });
+  });
+
+  // Operator admin panel: campaigns + active serving pool + network stats, one page.
+  app.get("/", (_req: Request, res: Response) => res.redirect("/admin"));
+  app.get("/admin", async (_req: Request, res: Response) => {
+    try {
+      res.type("html").send(await renderAdmin(store, BACKEND_URL));
+    } catch {
+      res.status(500).type("html").send("<h1>spnr admin temporarily unavailable</h1>");
+    }
   });
 
   // Create a campaign. Body: { advertiser, name, price_per_block_usd >= 1 }.

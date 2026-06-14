@@ -3,6 +3,7 @@
   "rewrites": [
     { "source": "/v1/:path*", "destination": "http://82.112.226.62:8787/v1/:path*" },
     { "source": "/api/:path*", "destination": "http://82.112.226.62:8787/api/:path*" },
-    { "source": "/c/:path*", "destination": "http://82.112.226.62:8787/c/:path*" }
+    { "source": "/c/:path*", "destination": "http://82.112.226.62:8787/c/:path*" },
+    { "source": "/v2/:path*", "destination": "http://82.112.226.62:8790/v2/:path*" }
   ]
 }
