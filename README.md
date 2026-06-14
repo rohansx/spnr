@@ -31,8 +31,10 @@ While your agent is working, the spinner shows sponsored, rotating, **clickable*
 ### Fastest — one-liner (connects to the hosted backend)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rohansx/spnr/main/install/get.sh | bash
+curl -fsSL https://get.spnr.sh | bash
 ```
+
+(Also works directly from source: `curl -fsSL https://raw.githubusercontent.com/rohansx/spnr/main/install/get.sh | bash`.)
 
 Requires `git` + a Rust toolchain (`cargo`). This clones the repo, builds the client
 binaries, wires spnr into Claude Code (**append-only and reversible** — your existing
