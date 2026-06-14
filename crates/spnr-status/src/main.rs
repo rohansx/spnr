@@ -41,9 +41,14 @@ fn sock_path() -> PathBuf {
 
 /// Build a terminal OSC 8 hyperlink: clickable `text` pointing at `url`. Terminals
 /// without OSC 8 support render just `text` (graceful degradation, S4). The closing
-/// `ESC]8;;ST` is always emitted so following output is not turned into a link.
+/// `OSC 8 ;; BEL` is always emitted so following output is not turned into a link.
+///
+/// The terminator is BEL (`\x07`), NOT ST (`ESC \`): BEL is the form Claude Code's
+/// statusLine documentation uses and is the most widely + reliably supported across
+/// terminals (ghostty, kitty, wezterm, iTerm2, vte). The ST form rendered as plain
+/// (non-clickable) text in practice.
 pub fn osc8(url: &str, text: &str) -> String {
-    format!("\x1b]8;;{url}\x1b\\{text}\x1b]8;;\x1b\\")
+    format!("\x1b]8;;{url}\x07{text}\x1b]8;;\x07")
 }
 
 /// Read the pre-rendered statusline line from the tmpfs cache. Missing cache ->
@@ -139,10 +144,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn osc8_is_well_formed_and_degrades_to_text() {
+    fn osc8_is_well_formed_with_a_bel_terminator_and_degrades_to_text() {
         let link = osc8("https://spnr.sh/c/AbC9", "spnr ▲ $4.43 ↗");
-        assert!(link.starts_with("\x1b]8;;https://spnr.sh/c/AbC9\x1b\\"));
-        assert!(link.ends_with("\x1b]8;;\x1b\\"));
+        // OSC 8 open, URL, BEL, text, OSC 8 close, BEL (BEL = \x07, the clickable form).
+        assert!(link.starts_with("\x1b]8;;https://spnr.sh/c/AbC9\x07"));
+        assert!(link.ends_with("\x1b]8;;\x07"));
+        assert!(!link.contains("\x1b\\"), "must use BEL, not the ST terminator");
         assert!(link.contains("spnr ▲ $4.43 ↗")); // the visible text survives stripping
     }
 

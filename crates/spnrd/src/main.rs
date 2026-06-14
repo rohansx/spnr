@@ -87,10 +87,11 @@ struct Daemon {
     /// Backend base URL (for building clickable /c/{code} statusline links). Empty
     /// off the networked path.
     server: String,
-    /// Short codes of the served rotation pool — the statusline cycles its clickable
-    /// link target through these (the spinner cycles the verbs natively).
-    ad_codes: Vec<String>,
-    /// Rotating index into `ad_codes` for the featured (clickable) statusline ad.
+    /// The served rotation pool as `(short_code, text)` — the statusline cycles its
+    /// CLICKABLE link (text + /c/{code} target) through these (the spinner cycles the
+    /// verbs natively).
+    ads: Vec<(String, String)>,
+    /// Rotating index into `ads` for the featured (clickable) statusline ad.
     featured: usize,
     /// Outbound flush channel (set only on the networked path).
     tx: Option<mpsc::UnboundedSender<String>>,
@@ -113,7 +114,7 @@ impl Daemon {
             impressions_total: 0,
             current_creative: None,
             server: String::new(),
-            ad_codes: Vec::new(),
+            ads: Vec::new(),
             featured: 0,
             tx: None,
         }
@@ -215,40 +216,46 @@ impl Daemon {
         let _ = self.write_status_cache();
     }
 
-    /// Refresh the cached statusline string read by `spnr-status`. The line is a
-    /// CLICKABLE OSC 8 hyperlink whose target rotates through the served pool, so the
-    /// status line is a live, clickable CTA for the currently-featured ad. Terminals
-    /// without OSC 8 render just the visible text (graceful degradation).
+    /// Refresh the cached statusline string read by `spnr-status`. The line is the
+    /// currently-featured ad's text wrapped as a CLICKABLE OSC 8 hyperlink to that
+    /// ad's `/c/{code}` redirector, with a compact earnings marker. The featured ad
+    /// rotates each call (~1 Hz via the heartbeat), so the status line is a live,
+    /// clickable, rotating ad. Terminals without OSC 8 render just the visible text.
     fn write_status_cache(&mut self) -> std::io::Result<()> {
-        let label = if self.impressions_total > 0 {
-            format!("spnr ▲ {} impressions today ↗", self.impressions_total)
-        } else {
-            "spnr ▲ live ↗".to_string()
-        };
-        let line = match self.featured_link() {
-            Some(url) => osc8(&url, &label),
-            None => label,
+        let line = match self.featured_ad() {
+            Some((url, text)) => {
+                let label = if self.impressions_total > 0 {
+                    format!("spnr ▲{} · {}", self.impressions_total, text)
+                } else {
+                    format!("spnr · {text}")
+                };
+                osc8(&url, &label)
+            }
+            // Off the networked path: plain earnings ticker, no link.
+            None => format!("spnr ▲ {} impressions today", self.impressions_total),
         };
         std::fs::write(&self.status_cache, line)
     }
 
-    /// The clickable `/c/{code}` URL for the currently-featured ad, advancing the
-    /// rotation by one. `None` off the networked path or with no served codes.
-    fn featured_link(&mut self) -> Option<String> {
-        if self.server.is_empty() || self.ad_codes.is_empty() {
+    /// The currently-featured ad as `(clickable /c/{code} url, ad text)`, advancing
+    /// the rotation by one. `None` off the networked path or with no served ads.
+    fn featured_ad(&mut self) -> Option<(String, String)> {
+        if self.server.is_empty() || self.ads.is_empty() {
             return None;
         }
-        let code = self.ad_codes[self.featured % self.ad_codes.len()].clone();
+        let (code, text) = self.ads[self.featured % self.ads.len()].clone();
         self.featured = self.featured.wrapping_add(1);
-        Some(format!("{}/c/{}", self.server.trim_end_matches('/'), code))
+        let url = format!("{}/c/{}", self.server.trim_end_matches('/'), code);
+        Some((url, text))
     }
 }
 
 /// Build a terminal OSC 8 hyperlink: clickable `text` pointing at `url`. Terminals
-/// without OSC 8 render just `text`. The closing `ESC]8;;ST` is always emitted so
-/// following output is not turned into a link. (Mirrors `spnr_status::osc8`.)
+/// without OSC 8 render just `text`. Uses the BEL (`\x07`) terminator — the form
+/// Claude Code's statusLine docs use and the most widely supported (the ST form
+/// rendered as non-clickable plain text). Mirrors `spnr_status::osc8`.
 fn osc8(url: &str, text: &str) -> String {
-    format!("\x1b]8;;{url}\x1b\\{text}\x1b]8;;\x1b\\")
+    format!("\x1b]8;;{url}\x07{text}\x1b]8;;\x07")
 }
 
 // ---------------------------------------------------------------------------
@@ -343,7 +350,8 @@ async fn main() -> anyhow::Result<()> {
         if !pool.is_empty() {
             daemon.current_creative = Some(pool[0].0.clone());
             daemon.server = server.clone();
-            daemon.ad_codes = pool.iter().map(|c| c.3.clone()).collect();
+            // (short_code, text) per ad — drives the rotating clickable status line.
+            daemon.ads = pool.iter().map(|c| (c.3.clone(), c.1.clone())).collect();
             let verbs: Vec<String> = pool.iter().map(|c| c.1.clone()).collect();
             let adapter = spnr_adapters::ClaudeCodeCli::new(
                 settings_path(),
@@ -470,25 +478,40 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut d = Daemon::new(dir.path());
         d.server = "http://127.0.0.1:8787".into();
-        d.ad_codes = vec!["AbC9".into(), "Kp7T".into(), "Zx2Q".into()];
+        d.ads = vec![
+            ("AbC9".into(), "CloakPipe ↗".into()),
+            ("Kp7T".into(), "ctxgraph ↗".into()),
+        ];
         d.write_status_cache().unwrap();
         let line = std::fs::read_to_string(&d.status_cache).unwrap();
-        // OSC 8 framing present, with a /c/{code} click target and the visible text.
+        // OSC 8 framing with a /c/{code} click target, a BEL terminator, and the ad text.
         assert!(line.starts_with("\x1b]8;;http://127.0.0.1:8787/c/"), "no OSC 8 link: {line:?}");
-        assert!(line.ends_with("\x1b]8;;\x1b\\"), "OSC 8 not closed: {line:?}");
-        assert!(line.contains("spnr ▲"), "missing visible ticker text: {line:?}");
+        assert!(line.ends_with("\x1b]8;;\x07"), "OSC 8 not BEL-terminated: {line:?}");
+        assert!(!line.contains("\x1b\\"), "must use BEL not ST: {line:?}");
+        assert!(line.contains("CloakPipe"), "missing the featured ad text: {line:?}");
     }
 
     #[test]
-    fn featured_ad_link_rotates_through_the_whole_pool() {
+    fn featured_ad_rotates_through_the_whole_pool() {
         let dir = tempfile::tempdir().unwrap();
         let mut d = Daemon::new(dir.path());
         d.server = "http://x".into();
-        d.ad_codes = vec!["AbC9".into(), "Kp7T".into(), "Zx2Q".into()];
-        let links: Vec<String> = (0..3).filter_map(|_| d.featured_link()).collect();
-        assert_eq!(links, vec!["http://x/c/AbC9", "http://x/c/Kp7T", "http://x/c/Zx2Q"]);
+        d.ads = vec![
+            ("AbC9".into(), "a ↗".into()),
+            ("Kp7T".into(), "b ↗".into()),
+            ("Zx2Q".into(), "c ↗".into()),
+        ];
+        let seen: Vec<(String, String)> = (0..3).filter_map(|_| d.featured_ad()).collect();
+        assert_eq!(
+            seen,
+            vec![
+                ("http://x/c/AbC9".into(), "a ↗".into()),
+                ("http://x/c/Kp7T".into(), "b ↗".into()),
+                ("http://x/c/Zx2Q".into(), "c ↗".into()),
+            ]
+        );
         // Wraps back around to the first ad.
-        assert_eq!(d.featured_link().as_deref(), Some("http://x/c/AbC9"));
+        assert_eq!(d.featured_ad().map(|(u, _)| u).as_deref(), Some("http://x/c/AbC9"));
     }
 
     #[test]
