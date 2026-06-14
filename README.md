@@ -28,6 +28,21 @@ While your agent is working, the spinner shows sponsored, rotating, **clickable*
 
 ## Quickstart
 
+### Fastest — one-liner (connects to the hosted backend)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rohansx/spnr/main/install/get.sh | bash
+```
+
+Requires `git` + a Rust toolchain (`cargo`). This clones the repo, builds the client
+binaries, wires spnr into Claude Code (**append-only and reversible** — your existing
+hooks/settings are untouched), and starts the daemon against the hosted backend. Run a
+Claude Code turn and the spinner shows rotating sponsored ads with a clickable earnings
+status line. Reverse anytime with `spnr uninstall`. Point at your own backend with
+`SPNR_SERVER=https://your-backend curl -fsSL … | bash`.
+
+### Or run the whole stack locally
+
 Requires a Rust toolchain (`cargo`), Node 18+, and `jq` + `curl` for the test scripts.
 
 ```bash
