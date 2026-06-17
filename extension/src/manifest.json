@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "spnr — sponsored bar for Claude",
+  "version": "0.1.0",
+  "description": "Earn from the spnr ad network while you use claude.ai. A thin sponsored bar; never reads what you type.",
+  "minimum_chrome_version": "137",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://claude.ai/*",
+    "http://82.112.226.62:8787/*"
+  ],
+  "background": {
+    "service_worker": "worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
